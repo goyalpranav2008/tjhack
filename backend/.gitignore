@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# SQLite dev database — never commit data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store

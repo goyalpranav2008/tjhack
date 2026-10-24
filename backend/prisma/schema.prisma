@@ -1,0 +1,121 @@
+// Provider is controlled by DATABASE_URL in .env.
+// For local dev (SQLite):  DATABASE_URL="file:./prisma/dev.db" and provider="sqlite"
+// For production (Postgres): change provider to "postgresql" and update DATABASE_URL.
+// The column values for String enums are identical between providers.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"    // ← change to "postgresql" for production
+  url      = env("DATABASE_URL")
+}
+
+// Format: "TEE" | "POSTER" | "CHAPTER" | "EVENT"
+// CampaignStatus: "DRAFT" | "TESTING" | "GO" | "ADAPT" | "STOP"
+// PledgeStatus: "OPTED_IN" | "PREAUTHORIZED" | "CAPTURED" | "RELEASED"
+
+model Campaign {
+  id               Int              @id @default(autoincrement())
+  slug             String           @unique
+  title            String
+  format           String           // Format enum values
+  listPrice        Int              // in rupees
+  minRun           Int
+  orderCap         Int
+  fixedSetupCost   Int
+  rightsCleared    Boolean          @default(false)
+  status           String           @default("DRAFT")  // CampaignStatus enum values
+  createdAt        DateTime         @default(now())
+
+  marginGate       MarginGate?
+  pledges          Pledge[]
+  gateEvaluations  GateEvaluation[]
+  orders           Order[]
+}
+
+model MarginGate {
+  id              Int      @id @default(autoincrement())
+  campaignId      Int      @unique
+  thresholdPct    Float    @default(0.20)
+  royaltyPct      Float
+  paymentFeePct   Float
+  referralPct     Float
+  productionCost  Int
+  logisticsCost   Int
+  packagingCost   Int
+
+  campaign        Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model ConsentLog {
+  id              Int      @id @default(autoincrement())
+  pseudonymousId  String
+  purpose         String
+  noticeVersion   String
+  ageConfirmed    Boolean
+  guardianConsent Boolean  @default(false)
+  givenAt         DateTime @default(now())
+
+  pledges         Pledge[]
+}
+
+model Pledge {
+  id              Int      @id @default(autoincrement())
+  campaignId      Int
+  pseudonymousId  String
+  city            String
+  language        String
+  format          String   // Format enum values
+  pricePaid       Int
+  comment         String?  // Optional fan comment, max 280 chars (enforced at app layer)
+  status          String   @default("OPTED_IN")  // PledgeStatus enum values
+  consentId       Int
+  createdAt       DateTime @default(now())
+
+  campaign        Campaign  @relation(fields: [campaignId], references: [id])
+  consent         ConsentLog @relation(fields: [consentId], references: [id])
+  order           Order?
+}
+
+model GateEvaluation {
+  id          Int      @id @default(autoincrement())
+  campaignId  Int?
+  inputJson   String
+  resultJson  String
+  createdAt   DateTime @default(now())
+
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+}
+
+model Seller {
+  id         Int     @id @default(autoincrement())
+  name       String  @unique
+  authorized Boolean @default(false)
+
+  orders     Order[]
+}
+
+model Order {
+  id         Int      @id @default(autoincrement())
+  serial     String   @unique           // e.g. FL-2026-XXXX
+  campaignId Int
+  pledgeId   Int?     @unique              // nullable — orders can be created without a pledge (e.g. seed)
+  itemName   String
+  batch      String
+  sellerId   Int
+  createdAt  DateTime @default(now())
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  pledge     Pledge?  @relation(fields: [pledgeId], references: [id])
+  seller     Seller   @relation(fields: [sellerId], references: [id])
+}
+
+// ── Postgres migration note ────────────────────────────────────────────────
+// When switching to Postgres, add these enum declarations and replace
+// the String fields with their enum types:
+//
+// enum Format          { TEE POSTER CHAPTER EVENT }
+// enum CampaignStatus  { DRAFT TESTING GO ADAPT STOP }
+// enum PledgeStatus    { OPTED_IN PREAUTHORIZED CAPTURED RELEASED }

@@ -1,0 +1,248 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "FandomLoop India",
+  "collectionId": "fandomloop-india-v1",
+  "dateExported": "2026-10-24",
+  "version": "1.2",
+  "folders": [
+    { "id": "health", "name": "Health" },
+    { "id": "campaigns", "name": "Campaigns" },
+    { "id": "gate", "name": "Gate Evaluation" },
+    { "id": "consent", "name": "Consent" },
+    { "id": "pledges", "name": "Pledges" },
+    { "id": "settle", "name": "Settle" },
+    { "id": "segments", "name": "Segments" }
+  ],
+  "requests": [
+    {
+      "id": "req-health",
+      "name": "Health Check",
+      "url": "http://localhost:4000/api/health",
+      "method": "GET",
+      "folderId": "health",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-campaigns-list",
+      "name": "List Campaigns",
+      "url": "http://localhost:4000/api/campaigns",
+      "method": "GET",
+      "folderId": "campaigns",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-campaigns-get-799",
+      "name": "Get Campaign: monsoon-samurai-tee (₹799)",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee",
+      "method": "GET",
+      "folderId": "campaigns",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-campaigns-get-999",
+      "name": "Get Campaign: monsoon-samurai-tee-999 (₹999)",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee-999",
+      "method": "GET",
+      "folderId": "campaigns",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-campaigns-create",
+      "name": "Create Campaign",
+      "url": "http://localhost:4000/api/campaigns",
+      "method": "POST",
+      "folderId": "campaigns",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"slug\": \"my-new-campaign\",\n  \"title\": \"My New Campaign\",\n  \"format\": \"TEE\",\n  \"listPrice\": 899,\n  \"rightsCleared\": true\n}"
+      }
+    },
+    {
+      "id": "req-gate-999",
+      "name": "Evaluate Gate — ₹999 → GO",
+      "url": "http://localhost:4000/api/campaigns/evaluate-gate",
+      "method": "POST",
+      "folderId": "gate",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"price\": 999,\n  \"format\": \"TEE\",\n  \"orders\": 120,\n  \"rightsCleared\": true\n}"
+      }
+    },
+    {
+      "id": "req-gate-799",
+      "name": "Evaluate Gate — ₹799 → ADAPT",
+      "url": "http://localhost:4000/api/campaigns/evaluate-gate",
+      "method": "POST",
+      "folderId": "gate",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"price\": 799,\n  \"format\": \"TEE\",\n  \"orders\": 120,\n  \"rightsCleared\": true\n}"
+      }
+    },
+    {
+      "id": "req-gate-499",
+      "name": "Evaluate Gate — ₹499 → STOP",
+      "url": "http://localhost:4000/api/campaigns/evaluate-gate",
+      "method": "POST",
+      "folderId": "gate",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"price\": 499,\n  \"format\": \"TEE\",\n  \"orders\": 120,\n  \"rightsCleared\": true\n}"
+      }
+    },
+    {
+      "id": "req-gate-rights-stop",
+      "name": "Evaluate Gate — Rights not cleared → STOP",
+      "url": "http://localhost:4000/api/campaigns/evaluate-gate",
+      "method": "POST",
+      "folderId": "gate",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"price\": 999,\n  \"format\": \"TEE\",\n  \"orders\": 120,\n  \"rightsCleared\": false\n}"
+      }
+    },
+    {
+      "id": "req-gate-chapter",
+      "name": "Evaluate Gate — CHAPTER (digital)",
+      "url": "http://localhost:4000/api/campaigns/evaluate-gate",
+      "method": "POST",
+      "folderId": "gate",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"price\": 299,\n  \"format\": \"CHAPTER\",\n  \"orders\": 250,\n  \"rightsCleared\": true\n}"
+      }
+    },
+    {
+      "id": "req-consent-adult",
+      "name": "Create Consent — Adult",
+      "url": "http://localhost:4000/api/consent",
+      "method": "POST",
+      "folderId": "consent",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"identifier\": \"+91-9876543210\",\n  \"purpose\": \"campaign_pledge\",\n  \"noticeVersion\": \"v1.0\",\n  \"ageConfirmed\": true\n}"
+      }
+    },
+    {
+      "id": "req-consent-minor-reject",
+      "name": "Create Consent — Minor, no guardian (should reject)",
+      "url": "http://localhost:4000/api/consent",
+      "method": "POST",
+      "folderId": "consent",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"identifier\": \"minor-device-id\",\n  \"purpose\": \"campaign_pledge\",\n  \"noticeVersion\": \"v1.0\",\n  \"ageConfirmed\": false\n}"
+      }
+    },
+    {
+      "id": "req-consent-minor-guardian",
+      "name": "Create Consent — Minor with guardian consent",
+      "url": "http://localhost:4000/api/consent",
+      "method": "POST",
+      "folderId": "consent",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"identifier\": \"minor-device-id\",\n  \"purpose\": \"campaign_pledge\",\n  \"noticeVersion\": \"v1.0\",\n  \"ageConfirmed\": false,\n  \"guardianConsent\": true\n}"
+      }
+    },
+    {
+      "id": "req-pledge-create",
+      "name": "Create Pledge",
+      "url": "http://localhost:4000/api/pledges",
+      "method": "POST",
+      "folderId": "pledges",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"campaignSlug\": \"monsoon-samurai-tee-999\",\n  \"consentId\": 1,\n  \"pseudonymousId\": \"REPLACE_WITH_PSEUDONYMOUS_ID\",\n  \"city\": \"Bengaluru\",\n  \"language\": \"English\",\n  \"format\": \"TEE\",\n  \"pricePaid\": 999\n}"
+      }
+    },
+    {
+      "id": "req-pledge-preauth",
+      "name": "Preauthorize Pledge (Mock UPI)",
+      "url": "http://localhost:4000/api/pledges/1/preauthorize",
+      "method": "POST",
+      "folderId": "pledges",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-settle-999",
+      "name": "Settle Campaign — ₹999 (expect GO)",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee-999/settle",
+      "method": "POST",
+      "folderId": "settle",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-settle-799",
+      "name": "Settle Campaign — ₹799 (expect ADAPT, pledges released)",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee/settle",
+      "method": "POST",
+      "folderId": "settle",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-settle-499",
+      "name": "Settle Campaign — ₹499 (expect STOP, pledges released)",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee-499/settle",
+      "method": "POST",
+      "folderId": "settle",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-segments-799",
+      "name": "Demand Segments — monsoon-samurai-tee",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee/segments",
+      "method": "GET",
+      "folderId": "segments",
+      "headers": [],
+      "body": { "type": "none" }
+    },
+    {
+      "id": "req-segments-999",
+      "name": "Demand Segments — monsoon-samurai-tee-999",
+      "url": "http://localhost:4000/api/campaigns/monsoon-samurai-tee-999/segments",
+      "method": "GET",
+      "folderId": "segments",
+      "headers": [],
+      "body": { "type": "none" }
+    }
+  ]
+}
