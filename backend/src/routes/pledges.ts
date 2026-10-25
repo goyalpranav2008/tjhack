@@ -31,6 +31,10 @@ export const VALID_LANGUAGES = [
 
 export const VALID_FORMATS = ["TEE", "POSTER", "CHAPTER", "EVENT"] as const;
 
+const VALID_PLATFORMS = ["netflix", "crunchyroll", "prime-video", "youtube", "other"] as const;
+
+const SOURCE_RE = /^[a-z0-9-]{1,40}$/;
+
 const CreatePledgeSchema = z.object({
   campaignSlug: z.string().min(1),
   consentId: z.number().int().positive(),
@@ -40,6 +44,11 @@ const CreatePledgeSchema = z.object({
   format: z.enum(VALID_FORMATS),
   pricePaid: z.number().int().positive(),
   comment: z.string().max(280).optional(),
+  source: z.string().regex(SOURCE_RE).optional(),
+  platforms: z
+    .array(z.enum(VALID_PLATFORMS))
+    .optional()
+    .transform((arr) => arr?.join(",") ?? null),
 });
 
 // POST /api/pledges
@@ -47,7 +56,7 @@ router.post("/", async (req, res) => {
   const parsed = CreatePledgeSchema.safeParse(req.body);
   if (!parsed.success) return sendZodError(res, parsed.error);
 
-  const { campaignSlug, consentId, pseudonymousId, city, language, format, pricePaid, comment } =
+  const { campaignSlug, consentId, pseudonymousId, city, language, format, pricePaid, comment, source, platforms } =
     parsed.data;
 
   // Verify consent exists and matches pseudonymousId
@@ -81,13 +90,23 @@ router.post("/", async (req, res) => {
       comment: comment ?? null,
       status: "OPTED_IN",
       consentId,
+      withdrawn: false,
+      source: source ?? null,
+      platforms: platforms ?? null,
     },
   });
 
-  const pledgeCount = await prisma.pledge.count({ where: { campaignId: campaign.id } });
+  // progressPct based on committed orders
+  const committedCount = await prisma.pledge.count({
+    where: {
+      campaignId: campaign.id,
+      withdrawn: false,
+      status: { in: ["PREAUTHORIZED", "CAPTURED"] },
+    },
+  });
   const progressPct =
     campaign.minRun > 0
-      ? parseFloat(((pledgeCount / campaign.minRun) * 100).toFixed(1))
+      ? parseFloat(((committedCount / campaign.minRun) * 100).toFixed(1))
       : 0;
 
   res.status(201).json({ pledge, progressPct });
@@ -109,18 +128,97 @@ router.post("/:id/preauthorize", async (req, res) => {
     );
   }
 
+  const campaign = await prisma.campaign.findUnique({ where: { id: pledge.campaignId } });
+  if (!campaign) return sendError(res, 404, "Campaign not found");
+
+  // ── ADAPT or STOP: closed, no preauthorization ───────────────────────
+  if (campaign.status === "ADAPT" || campaign.status === "STOP") {
+    return sendError(res, 409, "This campaign is not open for preorders.");
+  }
+
+  // ── GO: late preorder — capture immediately if units remain ──────────
+  if (campaign.status === "GO") {
+    const capturedCount = await prisma.pledge.count({
+      where: { campaignId: campaign.id, withdrawn: false, status: "CAPTURED" },
+    });
+    const remaining = Math.max(0, campaign.orderCap - capturedCount);
+
+    if (remaining === 0) {
+      return res.status(409).json({ error: "Sold out", remaining: 0 });
+    }
+
+    // Resolve seller
+    let sellerId = campaign.sellerId;
+    if (!sellerId) {
+      const defaultSeller = await prisma.seller.findUnique({ where: { name: "Otaku Hub India" } });
+      if (defaultSeller) sellerId = defaultSeller.id;
+    }
+    if (!sellerId) return sendError(res, 500, "No seller configured for campaign");
+
+    // Generate serial before transaction (uses main prisma client for uniqueness check)
+    const { generateSerial } = await import("./orders");
+    const serial = await generateSerial();
+
+    // Capture pledge + create order in one transaction
+    const [updatedPledge, order] = await prisma.$transaction(async (tx) => {
+      const p = await tx.pledge.update({
+        where: { id },
+        data: { status: "CAPTURED" },
+      });
+      const o = await tx.order.create({
+        data: {
+          serial,
+          campaignId: campaign.id,
+          pledgeId: id,
+          itemName: campaign.title,
+          batch: `B-${new Date().getFullYear()}-${campaign.id.toString().padStart(3, "0")}`,
+          sellerId: sellerId!,
+        },
+      });
+      return [p, o];
+    });
+
+    const newRemaining = Math.max(0, remaining - 1);
+    const mandateRef = `MOCK-UPI-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+    return res.json({
+      mock: true,
+      captured: true,
+      pledge: updatedPledge,
+      mandateRef,
+      serial: order.serial,
+      remaining: newRemaining,
+      note: "Goal was reached — your item is confirmed immediately.",
+    });
+  }
+
+  // ── TESTING: standard flow — PREAUTHORIZED, waits for settle ─────────
   const updated = await prisma.pledge.update({
     where: { id },
     data: { status: "PREAUTHORIZED" },
   });
 
-  // Fake mandate reference — no real money moves
+  // progressPct based on committed orders after this preauth
+  const committedCount = await prisma.pledge.count({
+    where: {
+      campaignId: pledge.campaignId,
+      withdrawn: false,
+      status: { in: ["PREAUTHORIZED", "CAPTURED"] },
+    },
+  });
+  const progressPct =
+    (campaign?.minRun ?? 0) > 0
+      ? parseFloat(((committedCount / campaign!.minRun) * 100).toFixed(1))
+      : 0;
+
   const mandateRef = `MOCK-UPI-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
   res.json({
     mock: true,
+    captured: false,
     pledge: updated,
     mandateRef,
+    progressPct,
     note: "No real payment has been taken. Pledge is preauthorized pending campaign gate evaluation.",
   });
 });

@@ -1,10 +1,10 @@
 import { Router } from "express";
 import prisma from "../db";
-import { evaluateGate, GateInput } from "../gate";
-import { COST_PROFILES } from "../costProfiles";
+import { evaluateGate } from "../gate";
 import { sendError } from "../errorShape";
 import { clusterComments } from "./cluster";
 import { generateBrief } from "./brief";
+import { buildGateInput } from "../gateInputBuilder";
 
 const router = Router();
 
@@ -18,7 +18,7 @@ router.post("/:slug/insights", async (req, res) => {
   if (!campaign) return sendError(res, 404, "Campaign not found");
 
   const pledges = await prisma.pledge.findMany({
-    where: { campaignId: campaign.id, comment: { not: null } },
+    where: { campaignId: campaign.id, comment: { not: null }, withdrawn: false },
     select: { comment: true },
   });
 
@@ -47,36 +47,22 @@ router.post("/:slug/brief", async (req, res) => {
   });
   if (!campaign) return sendError(res, 404, "Campaign not found");
 
-  // Build live gate verdict using current pledge count
-  const pledgeCount = await prisma.pledge.count({
-    where: { campaignId: campaign.id },
+  // Build live gate verdict using committed (PREAUTHORIZED or CAPTURED) count
+  const committedCount = await prisma.pledge.count({
+    where: {
+      campaignId: campaign.id,
+      withdrawn: false,
+      status: { in: ["PREAUTHORIZED", "CAPTURED"] },
+    },
   });
 
-  const profile = COST_PROFILES[campaign.format] ?? COST_PROFILES["TEE"];
-  const gate    = campaign.marginGate;
-
-  const gateInput: GateInput = {
-    price:          campaign.listPrice,
-    royaltyPct:     gate?.royaltyPct     ?? profile.royaltyPct,
-    paymentFeePct:  gate?.paymentFeePct  ?? profile.paymentFeePct,
-    referralPct:    gate?.referralPct    ?? profile.referralPct,
-    productionCost: gate?.productionCost ?? profile.productionCost,
-    logisticsCost:  gate?.logisticsCost  ?? profile.logisticsCost,
-    packagingCost:  gate?.packagingCost  ?? profile.packagingCost,
-    orders:         pledgeCount,
-    minRun:         campaign.minRun,
-    orderCap:       campaign.orderCap,
-    fixedSetupCost: campaign.fixedSetupCost,
-    rightsCleared:  campaign.rightsCleared,
-    thresholdPct:   gate?.thresholdPct   ?? 0.20,
-  };
-
+  const gateInput = buildGateInput(campaign, committedCount);
   const gateResult = evaluateGate(gateInput);
 
-  // Top segment by pledge count
+  // Top segment by non-withdrawn pledge count
   const segments = await prisma.pledge.groupBy({
     by: ["city", "language"],
-    where: { campaignId: campaign.id },
+    where: { campaignId: campaign.id, withdrawn: false },
     _count: { id: true },
     orderBy: { _count: { id: "desc" } },
     take: 1,
@@ -86,9 +72,9 @@ router.post("/:slug/brief", async (req, res) => {
     ? { city: segments[0].city, language: segments[0].language, count: segments[0]._count.id }
     : null;
 
-  // Clusters
+  // Clusters (non-withdrawn)
   const pledgesWithComments = await prisma.pledge.findMany({
-    where:  { campaignId: campaign.id, comment: { not: null } },
+    where:  { campaignId: campaign.id, comment: { not: null }, withdrawn: false },
     select: { comment: true },
   });
   const comments = pledgesWithComments
@@ -100,6 +86,7 @@ router.post("/:slug/brief", async (req, res) => {
     campaign.id,
     campaign.title,
     gateResult,
+    committedCount,
     topSeg,
     clusters
   );

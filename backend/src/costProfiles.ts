@@ -16,6 +16,7 @@ export type CostProfile = {
   royaltyPct: number;
   paymentFeePct: number;
   referralPct: number;
+  platformFeePct: number;
   fixedSetupCost: number;
   minRun: number;
   orderCap: number;
@@ -29,6 +30,7 @@ export const COST_PROFILES: Record<string, CostProfile> = {
     royaltyPct: 0.15,
     paymentFeePct: 0.02,
     referralPct: 0.05,
+    platformFeePct: 0.05,
     fixedSetupCost: 30000,
     minRun: 100,
     orderCap: 150,
@@ -40,6 +42,7 @@ export const COST_PROFILES: Record<string, CostProfile> = {
     royaltyPct: 0.15,
     paymentFeePct: 0.02,
     referralPct: 0.05,
+    platformFeePct: 0.05,
     fixedSetupCost: 12000,
     minRun: 100,
     orderCap: 200,
@@ -51,6 +54,7 @@ export const COST_PROFILES: Record<string, CostProfile> = {
     royaltyPct: 0.20,
     paymentFeePct: 0.02,
     referralPct: 0.05,
+    platformFeePct: 0.05,
     fixedSetupCost: 5000,
     minRun: 200,
     orderCap: 1000,
@@ -66,6 +70,7 @@ export const COST_PROFILES: Record<string, CostProfile> = {
     royaltyPct: 0.15,
     paymentFeePct: 0.02,
     referralPct: 0.05,
+    platformFeePct: 0.05,
     fixedSetupCost: 20000,
     minRun: 50,
     orderCap: 500,

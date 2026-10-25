@@ -1,0 +1,91 @@
+# REPLACE WITH REAL TEAM-LABELED COMMENTS BEFORE FINAL SUBMISSION
+# Format: text,scriptLanguage,topicLabel,sentimentLabel,source
+# topicLabel values: price | dubbing | merch-quality | delivery | events | other
+# sentimentLabel values: positive | negative | neutral
+# scriptLanguage values: Hindi | Tamil | Telugu | Bengali | English | Hinglish
+text,scriptLanguage,topicLabel,sentimentLabel,source
+"Would love a Hindi dub for this series",English,dubbing,positive,synthetic-demo
+"The price is too high for a t-shirt",English,price,negative,synthetic-demo
+"Great quality fabric, very happy with it",English,merch-quality,positive,synthetic-demo
+"Delivery was super fast to Mumbai",English,delivery,positive,synthetic-demo
+"Fan event in Bengaluru was amazing",English,events,positive,synthetic-demo
+"Love the official merch collection",English,other,positive,synthetic-demo
+"This is overpriced for what you get",English,price,negative,synthetic-demo
+"Need a Tamil dubbed version please",English,dubbing,positive,synthetic-demo
+"The shirt fabric is really poor quality",English,merch-quality,negative,synthetic-demo
+"Shipping took 3 weeks, very slow",English,delivery,negative,synthetic-demo
+"bhai yeh tee bahut mehnga hai",Hinglish,price,negative,synthetic-demo
+"yaar dub chahiye Hindi mein",Hinglish,dubbing,positive,synthetic-demo
+"ekdum mast quality hai bhai",Hinglish,merch-quality,positive,synthetic-demo
+"delivery jaldi aai, bahut sahi service",Hinglish,delivery,positive,synthetic-demo
+"fan meet Mumbai mein hoga kya",Hinglish,events,neutral,synthetic-demo
+"ye price thoda kam karo yaar",Hinglish,price,negative,synthetic-demo
+"quality bilkul bekar hai yaar",Hinglish,merch-quality,negative,synthetic-demo
+"bhai event Hyderabad mein bhi karo",Hinglish,events,positive,synthetic-demo
+"packaging bahut ganda tha",Hinglish,delivery,negative,synthetic-demo
+"sahi baat hai official merch lena chahiye",Hinglish,other,positive,synthetic-demo
+"यह डिज़ाइन बहुत अच्छा है",Hindi,merch-quality,positive,synthetic-demo
+"दाम बहुत ज़्यादा है, कम करो",Hindi,price,negative,synthetic-demo
+"हिंदी डब होना चाहिए इस सीरीज़ में",Hindi,dubbing,positive,synthetic-demo
+"डिलीवरी बहुत जल्दी आई, शुक्रिया",Hindi,delivery,positive,synthetic-demo
+"दिल्ली में इवेंट कब होगा",Hindi,events,neutral,synthetic-demo
+"कपड़े की क्वालिटी बहुत घटिया थी",Hindi,merch-quality,negative,synthetic-demo
+"इतना महंगा टी-शर्ट खरीदना संभव नहीं",Hindi,price,negative,synthetic-demo
+"हिंदी में सबटाइटल चाहिए",Hindi,dubbing,positive,synthetic-demo
+"पैकेजिंग अच्छी थी, सामान सुरक्षित पहुंचा",Hindi,delivery,positive,synthetic-demo
+"ऑफिशियल मर्च का इंतज़ार था",Hindi,other,positive,synthetic-demo
+"இந்த டிசைன் மிகவும் அழகாக இருக்கிறது",Tamil,merch-quality,positive,synthetic-demo
+"விலை மிகவும் அதிகமாக உள்ளது",Tamil,price,negative,synthetic-demo
+"தமிழில் டப் செய்யுங்கள் தயவுசெய்து",Tamil,dubbing,positive,synthetic-demo
+"டெலிவரி மிகவும் வேகமாக வந்தது",Tamil,delivery,positive,synthetic-demo
+"சென்னையில் நிகழ்ச்சி எப்போது",Tamil,events,neutral,synthetic-demo
+"துணியின் தரம் மிகவும் மோசமாக உள்ளது",Tamil,merch-quality,negative,synthetic-demo
+"இந்த விலையில் வாங்குவது சாத்தியமில்லை",Tamil,price,negative,synthetic-demo
+"ஆங்கில வசனங்களை தமிழில் மொழிபெயர்க்கவும்",Tamil,dubbing,positive,synthetic-demo
+"விரைவான டெலிவரிக்கு நன்றி",Tamil,delivery,positive,synthetic-demo
+"அதிகாரப்பூர்வமான பொருட்கள் கிடைத்தன",Tamil,other,positive,synthetic-demo
+"ఈ డిజైన్ చాలా బాగుంది తప్పకుండా కొంటాను",Telugu,merch-quality,positive,synthetic-demo
+"ఈ ధర చాలా ఎక్కువగా ఉంది",Telugu,price,negative,synthetic-demo
+"తెలుగులో డబ్ అవసరం",Telugu,dubbing,positive,synthetic-demo
+"డెలివరీ చాలా వేగంగా వచ్చింది",Telugu,delivery,positive,synthetic-demo
+"హైదరాబాద్‌లో ఈవెంట్ ఎప్పుడు",Telugu,events,neutral,synthetic-demo
+"వస్త్రం నాణ్యత చాలా తక్కువగా ఉంది",Telugu,merch-quality,negative,synthetic-demo
+"ఈ ధరకు కొనడం సాధ్యం కాదు",Telugu,price,negative,synthetic-demo
+"తెలుగు సబ్‌టైటిల్‌లు జోడించండి",Telugu,dubbing,positive,synthetic-demo
+"ప్యాకేజింగ్ బాగుంది సామాను సురక్షితంగా వచ్చింది",Telugu,delivery,positive,synthetic-demo
+"అధికారిక మర్చ్ కోసం ఎదురు చూస్తున్నాను",Telugu,other,positive,synthetic-demo
+"এই ডিজাইনটি অসাধারণ অবশ্যই কিনব",Bengali,merch-quality,positive,synthetic-demo
+"দাম অনেক বেশি কমানো উচিত",Bengali,price,negative,synthetic-demo
+"বাংলায় ডাব করুন দয়া করে",Bengali,dubbing,positive,synthetic-demo
+"ডেলিভারি খুব দ্রুত হয়েছে ধন্যবাদ",Bengali,delivery,positive,synthetic-demo
+"কলকাতায় ইভেন্ট কখন হবে",Bengali,events,neutral,synthetic-demo
+"কাপড়ের মান খুবই খারাপ",Bengali,merch-quality,negative,synthetic-demo
+"এই দামে কেনা সম্ভব নয়",Bengali,price,negative,synthetic-demo
+"বাংলা সাবটাইটেল যোগ করুন",Bengali,dubbing,positive,synthetic-demo
+"প্যাকেজিং ভালো ছিল পণ্য নিরাপদে এসেছে",Bengali,delivery,positive,synthetic-demo
+"অফিসিয়াল মার্চের জন্য অপেক্ষা করছিলাম",Bengali,other,positive,synthetic-demo
+"price is reasonable for official merch",English,price,positive,synthetic-demo
+"would buy if they reduce the cost",English,price,negative,synthetic-demo
+"cotton quality is top notch",English,merch-quality,positive,synthetic-demo
+"please add English subtitles as well",English,dubbing,positive,synthetic-demo
+"Chennai meetup was fantastic",English,events,positive,synthetic-demo
+"arrived broken packaging needs improvement",English,delivery,negative,synthetic-demo
+"excited for the next collection",English,other,positive,synthetic-demo
+"this price is fair for official goods",English,price,positive,synthetic-demo
+"the colour faded after one wash",English,merch-quality,negative,synthetic-demo
+"delayed by a week but arrived safe",English,delivery,neutral,synthetic-demo
+"dub chahiye Tamil mein bhi",Hinglish,dubbing,positive,synthetic-demo
+"bahut sasta lag raha hai yeh",Hinglish,price,positive,synthetic-demo
+"Kolkata event ke baare mein koi update",Hinglish,events,neutral,synthetic-demo
+"print bilkul clear hai zabardast",Hinglish,merch-quality,positive,synthetic-demo
+"ship time thoda zyada tha",Hinglish,delivery,negative,synthetic-demo
+"थोड़ा और किफायती होना चाहिए था",Hindi,price,negative,synthetic-demo
+"डिज़ाइन एकदम परफेक्ट है",Hindi,merch-quality,positive,synthetic-demo
+"मुंबई में इवेंट था बहुत अच्छा था",Hindi,events,positive,synthetic-demo
+"shipping address update करने में problem थी",Hindi,delivery,negative,synthetic-demo
+"மிகவும் சந்தோஷமாக இருக்கிறேன்",Tamil,other,positive,synthetic-demo
+"ఈ మర్చ్ పొందడం చాలా సంతోషంగా ఉంది",Telugu,other,positive,synthetic-demo
+"এই কালেকশন দেখে মুগ্ধ হলাম",Bengali,other,positive,synthetic-demo
+"screen printing quality is very bad",English,merch-quality,negative,synthetic-demo
+"really worth every rupee spent",English,price,positive,synthetic-demo
+"love the fan screening events",English,events,positive,synthetic-demo

@@ -1,319 +1,110 @@
-# FandomLoop India — Backend Prototype
+# FandomLoop India — Backend
 
-Demand-testing platform for licensed anime merch. Creators run short campaigns to gauge fan demand before committing to a production run. The margin gate evaluates whether economics are viable before any fan is charged.
-
-## Stack
-
-- **Runtime**: Node 20+, TypeScript
-- **Framework**: Express 4
-- **ORM / DB**: Prisma 5 with SQLite (dev) — Postgres-compatible, see migration note
-- **Validation**: Zod
-- **Tests**: Vitest + Supertest
+Express + Prisma API for the FandomLoop demand-testing platform. SQLite in dev; Postgres in production.
 
 ---
 
-## Setup
+## Local setup
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Copy environment file and set SERVER_SECRET
-cp .env.example .env
-# Edit .env — change SERVER_SECRET to a long random string in production
-
-# 3. Push schema to SQLite
-npm run db:push
-
-# 4. Seed demo data (3 campaigns + 60 pledges)
-npm run db:seed
-
-# 5. Start dev server (hot reload)
-npm run dev
-# → http://localhost:4000
+cp .env.example .env        # edit SERVER_SECRET at minimum
+npm run db:push             # creates prisma/dev.db
+npm run db:seed             # seeds 3 campaigns + 370 pledges + FL-DEMO-0001
+npm run dev                 # → http://localhost:4000
 ```
-
-### Other scripts
-
-| Script | Purpose |
-|---|---|
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Run compiled output |
-| `npm test` | Run all vitest tests (unit + integration) |
-| `npm run db:push` | Sync Prisma schema to the database |
-| `npm run db:seed` | Seed demo campaigns and pledges |
 
 ---
 
-## Switching to Postgres
+## Scripts
 
-1. In `.env`, change `DATABASE_URL` to a Postgres connection string.
-2. In `prisma/schema.prisma`, change `provider = "sqlite"` to `provider = "postgresql"`.
-3. Add the enum declarations at the bottom of the schema (instructions are in comments there).
-4. Replace `String` fields that hold enum values with their enum types.
-5. Run `npm run db:push` (or `prisma migrate deploy` for production).
+| Script | Description |
+|---|---|
+| `npm run dev` | Hot-reload dev server (tsx watch) |
+| `npm run build` | Compile TypeScript only |
+| `npm run build:prod` | Patch Prisma provider + prisma generate + tsc |
+| `npm start` | Run compiled output |
+| `npm run start:prod` | `prisma db push` then run compiled output (Render start command) |
+| `npm test` | Vitest (117 tests: unit + integration) |
+| `npm run db:push` | Sync schema to DB |
+| `npm run db:seed` / `npm run seed:prod` | Wipe + re-seed demo data |
+| `npm run demo:reset` | Force-reset DB + re-seed in one step |
 
 ---
 
 ## Environment variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | yes | Prisma DB URL (`file:./dev.db` for SQLite) |
-| `SERVER_SECRET` | yes | HMAC key for pseudonymous ID generation |
-| `PORT` | no | HTTP port, defaults to 4000 |
+Copy `.env.example` to `.env`. Full reference:
 
----
-
-## Pseudonymous IDs
-
-`pseudonymousId = HMAC-SHA256(phoneOrDeviceId, SERVER_SECRET)` truncated to 24 hex chars.  
-Raw phone numbers are **never stored**.
-
----
-
-## API Reference
-
-All responses use `Content-Type: application/json`. Errors follow `{ "error": "...", "details": ... }`.
-
-### GET /api/health
-
-```bash
-curl http://localhost:4000/api/health
-```
-```json
-{"status":"ok","service":"fandomloop-india","ts":"2026-10-24T09:00:00.000Z"}
-```
-
----
-
-### POST /api/campaigns — Create campaign
-
-```bash
-curl -X POST http://localhost:4000/api/campaigns \
-  -H "Content-Type: application/json" \
-  -d '{
-    "slug": "my-anime-tee",
-    "title": "My Anime T-Shirt",
-    "format": "TEE",
-    "listPrice": 799,
-    "rightsCleared": true
-  }'
-```
-
-Omit `minRun`, `orderCap`, `fixedSetupCost`, and gate params to use defaults from the cost profile for the format.
-
----
-
-### GET /api/campaigns — List all campaigns
-
-Returns campaigns with live pledge count, progress % toward minRun, and current gate verdict.
-
-```bash
-curl http://localhost:4000/api/campaigns
-```
-
----
-
-### GET /api/campaigns/:slug — Single campaign
-
-```bash
-curl http://localhost:4000/api/campaigns/monsoon-samurai-tee
-```
-```json
-{
-  "slug": "monsoon-samurai-tee",
-  "listPrice": 799,
-  "pledgeCount": 20,
-  "progressPct": 20.0,
-  "gateVerdict": {
-    "status": "ADAPT",
-    "contribution": 153,
-    "marginPct": 0.192,
-    "gatePct": 0.2,
-    "breakEvenOrders": 197,
-    "reasons": ["margin_below_gate", "orders_below_min_run", "break_even_exceeds_cap"]
-  }
-}
-```
-
----
-
-### POST /api/campaigns/evaluate-gate — Evaluate margin gate
-
-The three seed cases below confirm the core logic.
-
-**Case 1 — price 999 → GO**
-```bash
-curl -X POST http://localhost:4000/api/campaigns/evaluate-gate \
-  -H "Content-Type: application/json" \
-  -d '{"price":999,"format":"TEE","orders":120,"rightsCleared":true}'
-```
-```json
-{
-  "status": "GO",
-  "contribution": 309,
-  "marginPct": 0.31,
-  "gatePct": 0.2,
-  "breakEvenOrders": 98,
-  "reasons": []
-}
-```
-
-**Case 2 — price 799 → ADAPT (margin below gate, break-even exceeds cap)**
-```bash
-curl -X POST http://localhost:4000/api/campaigns/evaluate-gate \
-  -H "Content-Type: application/json" \
-  -d '{"price":799,"format":"TEE","orders":120,"rightsCleared":true}'
-```
-```json
-{
-  "status": "ADAPT",
-  "contribution": 153,
-  "marginPct": 0.192,
-  "gatePct": 0.2,
-  "breakEvenOrders": 197,
-  "reasons": ["margin_below_gate", "break_even_exceeds_cap"]
-}
-```
-
-**Case 3 — price 499 → STOP (negative contribution)**
-```bash
-curl -X POST http://localhost:4000/api/campaigns/evaluate-gate \
-  -H "Content-Type: application/json" \
-  -d '{"price":499,"format":"TEE","orders":120,"rightsCleared":true}'
-```
-```json
-{
-  "status": "STOP",
-  "contribution": -81,
-  "marginPct": -0.162,
-  "gatePct": 0.2,
-  "breakEvenOrders": null,
-  "reasons": []
-}
-```
-
-Every call is logged in the `GateEvaluation` table as an audit trail.
-
----
-
-### POST /api/consent — Record consent, get pseudonymousId
-
-```bash
-curl -X POST http://localhost:4000/api/consent \
-  -H "Content-Type: application/json" \
-  -d '{
-    "identifier": "+91-9876543210",
-    "purpose": "campaign_pledge",
-    "noticeVersion": "v1.0",
-    "ageConfirmed": true
-  }'
-```
-```json
-{"pseudonymousId":"a8222871a2557fb7bfe3a0b4","consentId":1}
-```
-
-Rejected with 400 if `ageConfirmed` is false and `guardianConsent` is not true.
-
----
-
-### POST /api/pledges — Record a pledge
-
-```bash
-curl -X POST http://localhost:4000/api/pledges \
-  -H "Content-Type: application/json" \
-  -d '{
-    "campaignSlug": "monsoon-samurai-tee-999",
-    "consentId": 1,
-    "pseudonymousId": "a8222871a2557fb7bfe3a0b4",
-    "city": "Bengaluru",
-    "language": "English",
-    "format": "TEE",
-    "pricePaid": 999
-  }'
-```
-
-Valid cities: `Delhi NCR`, `Bengaluru`, `Chennai`, `Kolkata`  
-Valid languages: `Hindi`, `Tamil`, `English`, `Bengali`
-
----
-
-### POST /api/pledges/:id/preauthorize — Mock UPI mandate
-
-No real payment. Returns `mock: true`.
-
-```bash
-curl -X POST http://localhost:4000/api/pledges/1/preauthorize
-```
-```json
-{
-  "mock": true,
-  "pledge": {"id": 1, "status": "PREAUTHORIZED", "...": "..."},
-  "mandateRef": "MOCK-UPI-1720000000000-AB3X9Z",
-  "note": "No real payment has been taken."
-}
-```
-
----
-
-### POST /api/campaigns/:slug/settle — Run gate and settle pledges
-
-Runs the gate on actual pledge count. On GO: `PREAUTHORIZED` → `CAPTURED`. On ADAPT/STOP: `PREAUTHORIZED` → `RELEASED` (no fan is charged).
-
-```bash
-curl -X POST http://localhost:4000/api/campaigns/monsoon-samurai-tee-999/settle
-```
-
----
-
-### GET /api/campaigns/:slug/segments — Demand segments
-
-Groups pledges by city × language × format. Returns demand score (0–100) and verdict per segment.
-
-```bash
-curl http://localhost:4000/api/campaigns/monsoon-samurai-tee/segments
-```
-```json
-{
-  "segments": [
-    {
-      "city": "Delhi NCR",
-      "language": "Hindi",
-      "format": "TEE",
-      "count": 5,
-      "avgPrice": 799,
-      "demandScore": 85,
-      "verdict": "GO"
-    }
-  ]
-}
-```
-
-**Score formula** (0–100):
-- 50% — volume: group count / max group count across all segments
-- 30% — price willingness: share of pledges at the single most popular price point
-- 20% — concentration: this group's share of total pledges
-
-Verdict thresholds: ≥75 = GO, 50–74 = ADAPT, <50 = STOP.
-
----
-
-## Cost Profiles (defaults per format)
-
-Defined in `src/costProfiles.ts`. Override any field via the request body or via a campaign's `MarginGate` record.
-
-| Field | TEE | POSTER | CHAPTER |
+| Variable | Required | Dev default | Description |
 |---|---|---|---|
-| productionCost | ₹360 | ₹120 | ₹0 |
-| logisticsCost | ₹85 | ₹60 | ₹0 |
-| packagingCost | ₹25 | ₹20 | ₹0 |
-| royaltyPct | 15% | 15% | 20% |
-| paymentFeePct | 2% | 2% | 2% |
-| referralPct | 5% | 5% | 5% |
-| fixedSetupCost | ₹30,000 | ₹12,000 | ₹5,000 |
-| minRun | 100 | 100 | 200 |
-| orderCap | 150 | 200 | 1,000 |
+| `DATABASE_URL` | yes | `file:./prisma/dev.db` | Prisma DB URL |
+| `DB_PROVIDER` | no | `sqlite` | `sqlite` or `postgresql` — patched into schema by `build:prod` |
+| `SERVER_SECRET` | yes | — | HMAC key ≥16 chars. **Server exits on start if missing in production.** |
+| `PORT` | no | `4000` | HTTP port |
+| `CORS_ORIGIN` | no | `localhost:3000,5173` | Comma-separated allowed origins |
+| `STUDIO_API_KEY` | no | *(empty)* | Protects studio routes. Empty = bypass in dev. |
+| `LLM_API_KEY` | no | *(empty)* | OpenAI-compatible key. Empty = template brief. |
+| `LLM_BASE_URL` | no | `https://api.openai.com/v1` | LLM endpoint |
+| `LLM_MODEL` | no | `gpt-4o-mini` | Model name |
+| `FAN_RATE_MAX` | no | `300` | Fan write rate limit (req/15 min/IP) |
+| `TEST_FEE_INR` | no | `10000` | Platform test fee (shown in Console) |
+
+---
+
+## Deploy to Render
+
+`render.yaml` in this directory configures the service automatically.
+
+Manual steps:
+1. Create a Render **PostgreSQL** database. Copy the Internal Database URL.
+2. Create a Render **Web Service** with root directory `backend/`.
+3. Build command: `npm ci && npm run build:prod`
+4. Start command: `npm run start:prod`
+5. Health check: `/api/health`
+6. Set environment variables (see table above).
+
+After deploying:
+- From the Render shell or locally: `DATABASE_URL="..." npm run seed:prod`
+- Verify: `bash scripts/smoke.sh https://your-api.onrender.com`
+
+---
+
+## How `build:prod` works
+
+```
+npm run build:prod
+  └─► node scripts/use-provider.mjs   # patches "sqlite" → "postgresql" in schema.prisma
+  └─► prisma generate                 # regenerates the client for the right provider
+  └─► tsc                             # compiles TypeScript to dist/
+```
+
+The patch is idempotent. Local dev is unaffected because `DB_PROVIDER` defaults to `sqlite`.
+
+---
+
+## Demand prior — public signals
+
+`GET /api/campaigns/:slug/prior` returns a 0-100 demand-prior score per city.
+
+**Signals and weights:**
+
+| Signal | Weight | Source |
+|---|---|---|
+| Google Trends regional interest | 40% | CSV export — `data/trends/<slug>.csv` |
+| AniList popularity | 30% | `https://graphql.anilist.co` (no key, 24h cache) |
+| Trend direction bonus | 20% | Computed from `data/trends/<slug>-timeseries.csv` |
+| Dub availability | 10% | `data/dubs.json` |
+
+**Google Trends CSV export:**
+1. Go to [trends.google.com/trends/explore](https://trends.google.com/trends/explore)
+2. Search the title, set geo = India, Subregion view
+3. Download → `data/trends/<campaign-slug>.csv`
+4. For trend direction: switch to "Interest over time" → `data/trends/<campaign-slug>-timeseries.csv`
+
+**AniList caching rule:** 24h cache per title, self-limited to 20 calls/min. Do not run bulk collection.
+
+**Why no Crunchyroll/Netflix data:** No public API. A data-sharing pilot with these platforms would be needed.
 
 ---
 
@@ -321,21 +112,46 @@ Defined in `src/costProfiles.ts`. Override any field via the request body or via
 
 ```
 src/
-  gate.ts           Pure gate logic — no DB, fully unit tested
-  costProfiles.ts   Per-format default cost config
-  pseudonym.ts      HMAC pseudonymous ID generator
-  app.ts            Express app + middleware
-  index.ts          Process entry point
-  db.ts             Shared Prisma client
-  errorShape.ts     Consistent error response helpers
-  seed.ts           Demo data seeder
+  gate.ts              Pure gate evaluation — no DB
+  costProfiles.ts      Per-format default costs
+  gateInputBuilder.ts  Shared GateInput constructor
+  pseudonym.ts         HMAC pseudonymous ID generator
+  app.ts               Express app + middleware
+  index.ts             Process entry point (production guard)
+  db.ts                Shared Prisma client
+  errorShape.ts        Error response helpers
+  seed.ts              Demo data seeder
   routes/
-    campaigns.ts    CRUD + evaluate-gate + settle + segments
-    consent.ts      ConsentLog creation
-    pledges.ts      Pledge creation + preauthorize
+    campaigns.ts       Campaigns CRUD + gate + settle + segments + sources + scans
+    consent.ts         Consent + withdrawal (DPDPA)
+    pledges.ts         Pledge creation + preauthorize
+    orders.ts          Verify endpoint + pledge order lookup
+  ai/
+    routes.ts          /insights + /brief endpoints
+    cluster.ts         Keyword comment clustering
+    brief.ts           LLM brief with template fallback
+  signals/
+    anilist.ts         AniList client + 24h cache + rate cap
+    trends.ts          Google Trends CSV reader + city→state map
+    prior.ts           Prior score + blend formula (pure functions)
+    routes.ts          GET /api/campaigns/:slug/prior
+  middleware/
+    auth.ts            Studio key check
+    rateLimit.ts       Fan write rate limiter
   __tests__/
-    gate.test.ts         Unit tests (pure function)
-    integration.test.ts  HTTP integration tests (supertest)
+    gate.test.ts       Unit tests — gate (13)
+    signals.test.ts    Unit tests — signals (50)
+    integration.test.ts HTTP integration tests — supertest (54)
+scripts/
+  use-provider.mjs     Patch Prisma provider before build:prod
+  smoke.sh             Smoke test — run against any base URL
+data/
+  dubs.json            Dub availability config (editable)
+  sample-signals.json  AniList fallback
+  trends/              Google Trends CSVs (manually exported)
+.cache/
+  anilist-*.json       24h AniList response cache (auto-created)
 prisma/
-  schema.prisma     Prisma schema (SQLite now, Postgres-ready)
+  schema.prisma        SQLite dev / Postgres prod
+render.yaml            Render deployment config
 ```

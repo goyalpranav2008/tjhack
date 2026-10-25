@@ -8,6 +8,7 @@ export type GateInput = {
   royaltyPct: number;
   paymentFeePct: number;
   referralPct: number;
+  platformFeePct: number;
   productionCost: number;
   logisticsCost: number;
   packagingCost: number;
@@ -19,6 +20,17 @@ export type GateInput = {
   thresholdPct: number;
 };
 
+export type GateBreakdown = {
+  price: number;
+  royalty: number;
+  production: number;
+  paymentFee: number;
+  logistics: number;
+  packaging: number;
+  referral: number;
+  platformFee: number;
+};
+
 export type GateResult = {
   status: "GO" | "ADAPT" | "STOP";
   contribution: number;       // rupees, rounded to nearest integer
@@ -26,6 +38,7 @@ export type GateResult = {
   gatePct: number;            // the threshold used
   breakEvenOrders: number | null;
   reasons: string[];
+  breakdown: GateBreakdown;
 };
 
 export function evaluateGate(input: GateInput): GateResult {
@@ -34,6 +47,7 @@ export function evaluateGate(input: GateInput): GateResult {
     royaltyPct,
     paymentFeePct,
     referralPct,
+    platformFeePct,
     productionCost,
     logisticsCost,
     packagingCost,
@@ -45,14 +59,15 @@ export function evaluateGate(input: GateInput): GateResult {
     thresholdPct,
   } = input;
 
-  // Component costs
-  const royalty = price * royaltyPct;
-  const paymentFee = price * paymentFeePct;
-  const referral = price * referralPct;
+  // Component costs (raw floats)
+  const royalty     = price * royaltyPct;
+  const paymentFee  = price * paymentFeePct;
+  const referral    = price * referralPct;
+  const platformFee = price * platformFeePct;
 
   // Contribution per unit (raw float, then rounded to nearest rupee)
   const contributionRaw =
-    price - (royalty + productionCost + paymentFee + logisticsCost + packagingCost + referral);
+    price - (royalty + productionCost + paymentFee + logisticsCost + packagingCost + referral + platformFee);
 
   const contribution = Math.round(contributionRaw);
 
@@ -63,6 +78,18 @@ export function evaluateGate(input: GateInput): GateResult {
   // Break-even order count (null if contribution <= 0)
   const breakEvenOrders =
     contribution > 0 ? Math.ceil(fixedSetupCost / contribution) : null;
+
+  // Breakdown rounded to 2 decimal places
+  const breakdown: GateBreakdown = {
+    price:      parseFloat(price.toFixed(2)),
+    royalty:    parseFloat(royalty.toFixed(2)),
+    production: parseFloat(productionCost.toFixed(2)),
+    paymentFee: parseFloat(paymentFee.toFixed(2)),
+    logistics:  parseFloat(logisticsCost.toFixed(2)),
+    packaging:  parseFloat(packagingCost.toFixed(2)),
+    referral:   parseFloat(referral.toFixed(2)),
+    platformFee: parseFloat(platformFee.toFixed(2)),
+  };
 
   const reasons: string[] = [];
 
@@ -77,6 +104,7 @@ export function evaluateGate(input: GateInput): GateResult {
       gatePct: thresholdPct,
       breakEvenOrders,
       reasons,
+      breakdown,
     };
   }
 
@@ -103,6 +131,7 @@ export function evaluateGate(input: GateInput): GateResult {
       gatePct: thresholdPct,
       breakEvenOrders,
       reasons,
+      breakdown,
     };
   }
 
@@ -115,5 +144,6 @@ export function evaluateGate(input: GateInput): GateResult {
     gatePct: thresholdPct,
     breakEvenOrders,
     reasons,
+    breakdown,
   };
 }

@@ -1,5 +1,5 @@
 // Provider is controlled by DATABASE_URL in .env.
-// For local dev (SQLite):  DATABASE_URL="file:./prisma/dev.db" and provider="sqlite"
+// For local dev (SQLite):  DATABASE_URL="file:./prisma/dev.db" and provider = "postgresql"
 // For production (Postgres): change provider to "postgresql" and update DATABASE_URL.
 // The column values for String enums are identical between providers.
 
@@ -27,12 +27,15 @@ model Campaign {
   fixedSetupCost   Int
   rightsCleared    Boolean          @default(false)
   status           String           @default("DRAFT")  // CampaignStatus enum values
+  sellerId         Int?             // FK to default Seller for this campaign
+  externalTitle    String?          // Title used for AniList search (e.g. "Jujutsu Kaisen")
   createdAt        DateTime         @default(now())
 
   marginGate       MarginGate?
   pledges          Pledge[]
   gateEvaluations  GateEvaluation[]
   orders           Order[]
+  seller           Seller?          @relation("CampaignSeller", fields: [sellerId], references: [id])
 }
 
 model MarginGate {
@@ -45,6 +48,7 @@ model MarginGate {
   productionCost  Int
   logisticsCost   Int
   packagingCost   Int
+  platformFeePct  Float    @default(0.05)
 
   campaign        Campaign @relation(fields: [campaignId], references: [id])
 }
@@ -72,6 +76,9 @@ model Pledge {
   comment         String?  // Optional fan comment, max 280 chars (enforced at app layer)
   status          String   @default("OPTED_IN")  // PledgeStatus enum values
   consentId       Int
+  withdrawn       Boolean  @default(false)
+  source          String?  // optional acquisition source, e.g. "mumbai-comic-con"
+  platforms       String?  // comma-separated list: netflix,crunchyroll,prime-video,youtube,other
   createdAt       DateTime @default(now())
 
   campaign        Campaign  @relation(fields: [campaignId], references: [id])
@@ -94,22 +101,99 @@ model Seller {
   name       String  @unique
   authorized Boolean @default(false)
 
-  orders     Order[]
+  orders            Order[]
+  defaultCampaigns  Campaign[] @relation("CampaignSeller")
 }
 
 model Order {
-  id         Int      @id @default(autoincrement())
-  serial     String   @unique           // e.g. FL-2026-XXXX
-  campaignId Int
-  pledgeId   Int?     @unique              // nullable — orders can be created without a pledge (e.g. seed)
-  itemName   String
-  batch      String
-  sellerId   Int
-  createdAt  DateTime @default(now())
+  id             Int       @id @default(autoincrement())
+  serial         String    @unique           // e.g. FL-2026-XXXX
+  campaignId     Int
+  pledgeId       Int?      @unique           // nullable — orders can be created without a pledge (e.g. seed)
+  itemName       String
+  batch          String
+  sellerId       Int
+  scanCount      Int       @default(0)
+  firstScannedAt DateTime?
+  createdAt      DateTime  @default(now())
 
   campaign   Campaign @relation(fields: [campaignId], references: [id])
   pledge     Pledge?  @relation(fields: [pledgeId], references: [id])
   seller     Seller   @relation(fields: [sellerId], references: [id])
+}
+
+model ScanLog {
+  id         Int      @id @default(autoincrement())
+  serial     String   // the scanned serial (may not exist in Order — never a FK)
+  found      Boolean
+  ipHash     String   // HMAC of IP with SERVER_SECRET — never the raw IP
+  userAgent  String   // first 120 chars
+  createdAt  DateTime @default(now())
+}
+
+// ── Evaluation layer ──────────────────────────────────────────────────────
+
+// SignalSnapshot: stores every API result we actually use so analysis is
+// reproducible and we respect cache-not-hoard rules.
+model SignalSnapshot {
+  id          Int      @id @default(autoincrement())
+  source      String   // "anilist" | "google-trends" | "sample"
+  key         String   // title slug (AniList) or region slug (Trends)
+  payloadJson String   // only the fields we use — not a full DB mirror
+  isSample    Boolean  @default(false)
+  fetchedAt   DateTime @default(now())
+  expiresAt   DateTime // 24h for AniList, manual refresh for Trends
+
+  @@unique([source, key])
+}
+
+// LabeledComment: ground-truth dataset for classifier evaluation.
+// Text is PII-scrubbed before storage; linked to pseudonymousId, never raw phone/email.
+model LabeledComment {
+  id              Int      @id @default(autoincrement())
+  pseudonymousId  String?  // optional link to a real pledge (scrubbed ID only)
+  text            String   // PII-scrubbed comment text
+  scriptLanguage  String   // Hindi | Tamil | Telugu | Bengali | English | Hinglish
+  topicLabel      String   // price | dubbing | merch-quality | delivery | events | other
+  sentimentLabel  String   // positive | negative | neutral
+  source          String   @default("team-labeled") // "team-labeled" or "synthetic-demo"
+  createdAt       DateTime @default(now())
+
+  evalPredictions EvalPrediction[]
+}
+
+// EvalRun: one complete evaluation pass over all LabeledComments.
+model EvalRun {
+  id                    Int      @id @default(autoincrement())
+  method                String   // "keyword" | "llm" | "baseline"
+  startedAt             DateTime @default(now())
+  datasetSize           Int
+  accuracyTopic         Float?
+  macroF1Topic          Float?
+  accuracySentiment     Float?
+  macroF1Sentiment      Float?
+  perLanguageJson       String?  // JSON: { lang: { topic: acc, sentiment: acc } }
+  confusionTopicJson    String?  // JSON: confusion matrix for topic labels
+  confusionSentimentJson String? // JSON: confusion matrix for sentiment labels
+  notes                 String?
+
+  predictions EvalPrediction[]
+}
+
+// EvalPrediction: one row per comment per eval run.
+model EvalPrediction {
+  id                 Int      @id @default(autoincrement())
+  evalRunId          Int
+  labeledCommentId   Int
+  predictedTopic     String
+  predictedSentiment String
+  correctTopic       Boolean
+  correctSentiment   Boolean
+
+  evalRun        EvalRun        @relation(fields: [evalRunId], references: [id])
+  labeledComment LabeledComment @relation(fields: [labeledCommentId], references: [id])
+
+  @@unique([evalRunId, labeledCommentId])
 }
 
 // ── Postgres migration note ────────────────────────────────────────────────

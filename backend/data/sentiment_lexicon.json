@@ -1,0 +1,19 @@
+{
+  "_comment": "Multilingual sentiment lexicon. Add words freely — one entry per line. All are matched case-insensitively on lowercased text.",
+  "positive": {
+    "English":  ["love", "great", "amazing", "excellent", "perfect", "good", "nice", "awesome", "fantastic", "happy", "excited", "official", "beautiful", "cool", "worth", "best"],
+    "Hinglish": ["mast", "ekdum", "badhiya", "sahi", "zabardast", "wah", "bindaas", "kamaal", "dhamaaka", "top"],
+    "Hindi":    ["अच्छा", "बढ़िया", "शानदार", "जबरदस्त", "प्यारा", "खूबसूरत", "बेहतरीन", "मस्त"],
+    "Tamil":    ["அழகான", "நல்ல", "சிறந்த", "அருமை", "மிகவும்"],
+    "Telugu":   ["బాగుంది", "చాలా", "అద్భుతమైన", "మంచి"],
+    "Bengali":  ["সুন্দর", "দারুণ", "অসাধারণ", "ভালো", "চমৎকার"]
+  },
+  "negative": {
+    "English":  ["expensive", "bad", "terrible", "hate", "worst", "poor", "cheap", "fake", "disappoint", "never", "wrong", "avoid", "scam", "waste", "overpriced"],
+    "Hinglish": ["bekar", "bakwas", "faltu", "cheat", "mehnga", "ganda", "bura", "kharab", "nahi", "mat lo"],
+    "Hindi":    ["महंगा", "बेकार", "बकवास", "घटिया", "बुरा", "खराब", "नहीं", "फालतू"],
+    "Tamil":    ["மோசமான", "கெட்ட", "விலை அதிகம்", "பயனில்லை"],
+    "Telugu":   ["చెడ్డ", "వ్యర్థం", "ఖరీదు ఎక్కువ", "నిరాశ"],
+    "Bengali":  ["খারাপ", "বাজে", "দাম বেশি", "নিরাশ", "ব্যর্থ"]
+  }
+}

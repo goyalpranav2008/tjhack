@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowLeft, AlertCircle, Check, Loader2 } from "lucide-react"
-import { CONCEPT } from "../data/combos"
 import {
   CITIES,
   LANGUAGES,
@@ -10,30 +9,48 @@ import {
   PRICE_BANDS,
   FORMAT_TO_BACKEND,
   PRICE_BAND_TO_AMOUNT,
+  PLATFORM_OPTIONS,
+  DEFAULT_CAMPAIGN_SLUG,
 } from "../lib/formats"
-import { addOptIn } from "../lib/storage"
+import { addOptIn, getDeviceId } from "../lib/storage"
 import { recordConsent, createPledge } from "../lib/api"
+import ConsentBlock from "../components/ConsentBlock"
+import GoalProgress from "../components/GoalProgress"
+import { getCampaign } from "../lib/api"
 
-const EMPTY = { city: "", language: "", format: "", priceBand: "", comment: "", consent: false, ageConfirmed: false, isMinor: false, guardianConsent: false }
+const EMPTY = {
+  city: "", language: "", format: "", priceBand: "", platforms: [],
+  comment: "", consent: false, isMinor: false, guardianConsent: false,
+}
 
 const QUESTIONS = [
-  { key: "city",      title: "Which city are you in?",           options: CITIES        },
+  { key: "city",      title: "Which city are you in?",            options: CITIES        },
   { key: "language",  title: "Which language do you want it in?", options: LANGUAGES     },
-  { key: "format",    title: "What would you buy?",              options: FORMAT_LABELS },
-  { key: "priceBand", title: "What would you pay?",              options: PRICE_BANDS   },
+  { key: "format",    title: "What would you buy?",               options: FORMAT_LABELS },
+  { key: "priceBand", title: "What would you pay?",               options: PRICE_BANDS   },
 ]
-const LAST = QUESTIONS.length // index of the final step (comment + consent)
+const LAST = QUESTIONS.length // index of final step (platforms + comment + consent)
 
 export default function Vote() {
   const [step, setStep] = useState(0)
   const [form, setForm] = useState(EMPTY)
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  // null = no error, string = show error, "retry" = show retry button
   const [apiError, setApiError] = useState(null)
+  const [alreadyVoted, setAlreadyVoted] = useState(false)
   const [dir, setDir] = useState(1)
   const timer = useRef(null)
   const heading = useRef(null)
+  // Keep one stable localOptin so retry preserves isMinor / guardianConsent
+  const localOptinRef = useRef(null)
+  // Campaign for GoalProgress
+  const [campaign, setCampaign] = useState(null)
+
+  useEffect(() => {
+    getCampaign(DEFAULT_CAMPAIGN_SLUG)
+      .then(setCampaign)
+      .catch(() => {})
+  }, [])
 
   useEffect(() => () => clearTimeout(timer.current), [])
   useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [step, done])
@@ -52,27 +69,41 @@ export default function Vote() {
     }, 220)
   }
 
-  const sendToBackend = async (localOptin) => {
-    const backendFormat = FORMAT_TO_BACKEND[localOptin.format] ?? "TEE"
-    const pricePaid = PRICE_BAND_TO_AMOUNT[localOptin.priceBand] ?? 299
+  const togglePlatform = (val) => {
+    setForm((f) => ({
+      ...f,
+      platforms: f.platforms.includes(val)
+        ? f.platforms.filter((p) => p !== val)
+        : [...f.platforms, val],
+    }))
+  }
+
+  const sendToBackend = async (lo) => {
+    const backendFormat = FORMAT_TO_BACKEND[lo.format] ?? "TEE"
+    const pricePaid = PRICE_BAND_TO_AMOUNT[lo.priceBand] ?? 299
+
+    // Read ?ref= from sessionStorage (set by FanLayout)
+    const source = sessionStorage.getItem("fandomloop_ref") || undefined
 
     const { pseudonymousId, consentId } = await recordConsent({
-      identifier: localOptin.id, // random anon ID — never stored raw by the backend
+      identifier: lo.id,
       purpose: "fan-demand-signal",
       noticeVersion: "v1",
-      ageConfirmed: !localOptin.isMinor,           // true if they ticked "18 or over"
-      guardianConsent: localOptin.isMinor ? localOptin.guardianConsent : false,
+      ageConfirmed: !lo.isMinor,
+      guardianConsent: lo.isMinor ? lo.guardianConsent : false,
     })
 
     await createPledge({
-      campaignSlug: "skyblade-chronicles",
+      campaignSlug: DEFAULT_CAMPAIGN_SLUG,
       consentId,
       pseudonymousId,
-      city: localOptin.city,
-      language: localOptin.language,
+      city: lo.city,
+      language: lo.language,
       format: backendFormat,
       pricePaid,
-      comment: localOptin.comment || undefined,
+      comment: lo.comment || undefined,
+      source,
+      platforms: lo.platforms?.length ? lo.platforms : undefined,
     })
   }
 
@@ -82,28 +113,36 @@ export default function Vote() {
 
     setSubmitting(true)
     setApiError(null)
+    setAlreadyVoted(false)
 
-    // Always persist locally first so the vote is never lost
-    const localOptin = {
-      id: `anon-${Math.random().toString(36).slice(2, 10)}`,
-      concept: CONCEPT,
-      city: form.city,
-      language: form.language,
-      format: form.format,
-      priceBand: form.priceBand,
-      comment: form.comment.trim(),
-      consent: true,
-      isMinor: form.isMinor,
-      guardianConsent: form.guardianConsent,
+    // Build and cache the localOptin so retry reuses it unchanged
+    if (!localOptinRef.current) {
+      localOptinRef.current = {
+        id: getDeviceId(),
+        concept: "Monsoon Samurai",
+        city: form.city,
+        language: form.language,
+        format: form.format,
+        priceBand: form.priceBand,
+        platforms: form.platforms,
+        comment: form.comment.trim(),
+        consent: true,
+        isMinor: form.isMinor,
+        guardianConsent: form.guardianConsent,
+      }
     }
-    addOptIn(localOptin)
+    addOptIn(localOptinRef.current)
 
     try {
-      await sendToBackend(localOptin)
+      await sendToBackend(localOptinRef.current)
       setDone(true)
     } catch (err) {
-      // Vote is already saved locally. Show a clear error with a retry option
-      // so the fan knows what happened and can try again.
+      if (err.status === 409) {
+        // Already voted — treat as success, not an error
+        setAlreadyVoted(true)
+        setDone(true)
+        return
+      }
       console.error("Backend vote sync failed:", err)
       setApiError(err?.message ?? "Could not reach the server. Check your connection.")
     } finally {
@@ -114,21 +153,16 @@ export default function Vote() {
   const retry = async () => {
     setSubmitting(true)
     setApiError(null)
-    // Reconstruct localOptin from current form state (already in localStorage)
-    const localOptin = {
-      id: `anon-${Math.random().toString(36).slice(2, 10)}`,
-      concept: CONCEPT,
-      city: form.city,
-      language: form.language,
-      format: form.format,
-      priceBand: form.priceBand,
-      comment: form.comment.trim(),
-      consent: true,
-    }
+    // Reuse cached localOptin — isMinor / guardianConsent are preserved
     try {
-      await sendToBackend(localOptin)
+      await sendToBackend(localOptinRef.current)
       setDone(true)
     } catch (err) {
+      if (err.status === 409) {
+        setAlreadyVoted(true)
+        setDone(true)
+        return
+      }
       setApiError(err?.message ?? "Still could not reach the server.")
     } finally {
       setSubmitting(false)
@@ -146,11 +180,31 @@ export default function Vote() {
         >
           <Check size={56} strokeWidth={3} aria-hidden="true" />
         </motion.div>
-        <h1 ref={heading} tabIndex={-1} className="mt-8 font-pop text-4xl outline-none">Vote counted</h1>
-        <p className="mx-auto mt-3 max-w-sm text-lg">
-          The studio will see a {form.format.toLowerCase()} vote from {form.city}. If your city gets
-          the go-ahead, you can preorder.
-        </p>
+        <h1 ref={heading} tabIndex={-1} className="mt-8 font-pop text-4xl outline-none">
+          Vote counted
+        </h1>
+        {alreadyVoted ? (
+          <p className="mx-auto mt-3 max-w-sm text-lg">
+            You've already voted on this drop. Your first vote still counts. 🙌
+          </p>
+        ) : (
+          <p className="mx-auto mt-3 max-w-sm text-lg">
+            The studio will see a {form.format.toLowerCase()} vote from {form.city}. If your
+            city gets the go-ahead, you can preorder.
+          </p>
+        )}
+
+        {/* GoalProgress on the done screen */}
+        {campaign && (
+          <div className="mx-auto mt-6 max-w-sm">
+            <GoalProgress
+              committedCount={campaign.committedCount ?? 0}
+              minRun={campaign.minRun ?? 100}
+              size="lg"
+            />
+          </div>
+        )}
+
         <div className="mx-auto mt-8 flex max-w-xs flex-col gap-3">
           <Link to="/preorder" className="btn-pop">Preorder an item</Link>
           <button
@@ -160,6 +214,8 @@ export default function Vote() {
               setStep(0)
               setDone(false)
               setApiError(null)
+              setAlreadyVoted(false)
+              localOptinRef.current = null
             }}
           >
             Vote again
@@ -256,9 +312,42 @@ export default function Vote() {
                 tabIndex={-1}
                 className="font-pop text-3xl leading-tight outline-none sm:text-4xl"
               >
-                Anything else the studio should know?
+                Last step
               </h1>
-              <label htmlFor="comment" className="mt-5 block font-bold">
+
+              {/* Platform multi-select */}
+              <fieldset className="mt-5">
+                <legend className="font-bold">Where do you watch anime? <span className="font-normal text-ink/70">(optional)</span></legend>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {PLATFORM_OPTIONS.map(({ value, label }) => {
+                    const on = form.platforms.includes(value)
+                    return (
+                      <label
+                        key={value}
+                        className={`flex cursor-pointer items-center gap-2 rounded-xl border-2 border-ink px-3 py-2.5 text-sm font-bold has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink ${
+                          on ? "bg-bubble" : "bg-white shadow-pop-sm"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          value={value}
+                          checked={on}
+                          onChange={() => togglePlatform(value)}
+                          className="sr-only"
+                        />
+                        <span
+                          className={`h-4 w-4 shrink-0 rounded border-2 border-ink ${on ? "bg-ink" : "bg-white"}`}
+                          aria-hidden="true"
+                        />
+                        {label}
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+
+              {/* Comment */}
+              <label htmlFor="comment" className="mt-6 block font-bold">
                 What would make you buy this?{" "}
                 <span className="font-normal text-ink/70">(optional, any language)</span>
               </label>
@@ -272,61 +361,21 @@ export default function Vote() {
                 className="mt-2 w-full rounded-2xl border-2 border-ink bg-white p-4 text-lg placeholder:text-ink/50"
               />
 
-              <label className="card-pop mt-6 flex cursor-pointer items-start gap-3 p-4 text-base">
-                <input
-                  type="checkbox"
-                  checked={form.consent}
-                  onChange={(e) => setForm((f) => ({ ...f, consent: e.target.checked }))}
-                  className="mt-0.5 h-6 w-6 shrink-0 accent-bubble"
+              {/* Consent block */}
+              <div className="mt-6">
+                <ConsentBlock
+                  form={form}
+                  onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
                 />
-                <span>
-                  I agree to share this vote anonymously with the studio. My name and phone number
-                  are not saved.
-                </span>
-              </label>
-
-              {/* Age confirmation — required by DPDPA */}
-              <div className="card-pop mt-3 space-y-3 p-4 text-base">
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={!form.isMinor}
-                    onChange={(e) => setForm((f) => ({
-                      ...f,
-                      isMinor: !e.target.checked,
-                      guardianConsent: false,
-                    }))}
-                    className="mt-0.5 h-6 w-6 shrink-0 accent-bubble"
-                  />
-                  <span>I am 18 years old or above.</span>
-                </label>
-                {form.isMinor && (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-ink/20 bg-sun/30 p-3 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.guardianConsent}
-                      onChange={(e) => setForm((f) => ({ ...f, guardianConsent: e.target.checked }))}
-                      className="mt-0.5 h-5 w-5 shrink-0 accent-bubble"
-                    />
-                    <span>
-                      A parent or guardian has consented on my behalf and agrees to this data being
-                      shared anonymously with the studio.
-                    </span>
-                  </label>
-                )}
               </div>
 
-              {/* API error banner — shown when backend returns an error */}
+              {/* API error banner */}
               {apiError && (
                 <div
                   role="alert"
                   className="mt-4 flex items-start gap-3 rounded-2xl border-2 border-[#B3123F] bg-[#fdf2f4] p-4"
                 >
-                  <AlertCircle
-                    size={20}
-                    className="mt-0.5 shrink-0 text-[#B3123F]"
-                    aria-hidden="true"
-                  />
+                  <AlertCircle size={20} className="mt-0.5 shrink-0 text-[#B3123F]" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-[#B3123F]">Could not send your vote</p>
                     <p className="mt-1 text-sm text-[#B3123F]/80">{apiError}</p>
@@ -347,10 +396,7 @@ export default function Vote() {
                       className="btn-pop w-full"
                     >
                       {submitting ? (
-                        <>
-                          <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-                          Retrying…
-                        </>
+                        <><Loader2 size={20} className="animate-spin" aria-hidden="true" />Retrying…</>
                       ) : (
                         "Retry sending"
                       )}
@@ -358,10 +404,7 @@ export default function Vote() {
                     <button
                       type="button"
                       className="btn-pop light w-full"
-                      onClick={() => {
-                        setDone(true)
-                        setApiError(null)
-                      }}
+                      onClick={() => { setDone(true); setApiError(null) }}
                     >
                       Continue anyway
                     </button>
@@ -369,14 +412,15 @@ export default function Vote() {
                 ) : (
                   <button
                     type="submit"
-                    disabled={!form.consent || submitting || (form.isMinor && !form.guardianConsent)}
+                    disabled={
+                      !form.consent ||
+                      submitting ||
+                      (form.isMinor && !form.guardianConsent)
+                    }
                     className="btn-pop w-full"
                   >
                     {submitting ? (
-                      <>
-                        <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-                        Sending…
-                      </>
+                      <><Loader2 size={20} className="animate-spin" aria-hidden="true" />Sending…</>
                     ) : (
                       "Send my vote"
                     )}

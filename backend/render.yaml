@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: fandomloop-india-api
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci && npm run build:prod
+    startCommand: npm run start:prod
+    healthCheckPath: /api/health
+
+    # ── Environment variables ─────────────────────────────────────────────
+    # Set these in the Render dashboard (Dashboard → Service → Environment).
+    # Variables marked sync: false must be filled in manually.
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Postgres connection string — create a Render Postgres database first,
+      # then copy the "Internal Database URL" here.
+      - key: DATABASE_URL
+        sync: false          # must be set manually; contains credentials
+
+      # Tell use-provider.mjs to patch the schema to postgresql
+      - key: DB_PROVIDER
+        value: postgresql
+
+      # HMAC key for pseudonymous ID generation.
+      # Generate with: openssl rand -hex 32
+      - key: SERVER_SECRET
+        generateValue: true  # Render auto-generates a random value
+
+      # Studio API key — protects POST /api/campaigns and POST /api/campaigns/:slug/settle
+      # Generate with: openssl rand -hex 24
+      - key: STUDIO_API_KEY
+        generateValue: true
+
+      # Set to your Vercel frontend URL after deploying the frontend, e.g.:
+      # https://fandomloop.vercel.app
+      - key: CORS_ORIGIN
+        sync: false          # fill in after Vercel deployment
+
+      # Optional — leave blank to use template briefs
+      - key: LLM_API_KEY
+        sync: false
+
+      # Fan-facing write rate limit (requests per 15 min per IP)
+      # Default 300 is fine for event Wi-Fi; lower to 30 for tighter control
+      - key: FAN_RATE_MAX
+        value: "300"

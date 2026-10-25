@@ -1,0 +1,11 @@
+{
+  "_comment": "Map of externalTitle (lowercase) to dub languages available in India. Add entries as licensing data becomes available.",
+  "jujutsu kaisen": ["Hindi", "Tamil", "Telugu"],
+  "attack on titan": ["Hindi"],
+  "demon slayer": ["Hindi", "Tamil", "Telugu"],
+  "one piece": ["Hindi"],
+  "dragon ball super": ["Hindi", "Tamil", "Telugu"],
+  "naruto shippuden": ["Hindi"],
+  "my hero academia": ["Hindi"],
+  "sword art online": ["Hindi"]
+}

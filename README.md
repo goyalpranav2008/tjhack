@@ -9,44 +9,110 @@ Demand-testing platform for licensed anime merchandise. Studios run campaigns to
 ```
 tjhack/
   backend/    Node.js · Express · Prisma · SQLite (dev) / Postgres (prod)
-  frontend/   React · Vite · Tailwind CSS
+  frontend/   React 18 · Vite · Tailwind CSS v4 · Framer Motion · Recharts
 ```
 
 ```
 Fan browser  ──POST /api/consent──►  Express API  ──►  Prisma  ──►  SQLite / Postgres
              ──POST /api/pledges──►
-             ──POST /api/orders──►
              ──GET  /api/verify/:serial──►
 
-Studio browser ──GET  /api/campaigns──►  Express API
-               ──POST /api/campaigns/:slug/insights──►  AI cluster module
-               ──POST /api/campaigns/:slug/brief──►     LLM (optional) or template
-               ──POST /api/campaigns/:slug/settle──►    (requires X-Studio-Key)
+Studio browser ──GET  /api/campaigns──►   Express API
+               ──POST /api/campaigns/:slug/settle──►  (X-Studio-Key required)
+               ──GET  /api/campaigns/:slug/prior──►   AniList + Trends signals
 ```
 
 ---
 
 ## Quick start (local dev)
 
-**Requirements:** Node.js 20+
+**Requirements:** Node.js 20+, curl, jq (for smoke test)
 
 ```bash
 # 1. Install dependencies
 cd backend  && npm install
 cd ../frontend && npm install
 
-# 2. Set up the backend database
+# 2. Set up backend environment
 cd backend
-npm run db:push    # creates prisma/dev.db
-npm run db:seed    # demo campaigns, pledges, sellers, FL-DEMO-0001 order
+cp .env.example .env
+# Edit .env — change SERVER_SECRET to any string for local dev
 
-# 3. Start both servers in separate terminals
-cd backend  && npm run dev   # → http://localhost:4000
-cd frontend && npm run dev   # → http://localhost:5173
+# 3. Create the SQLite database and seed demo data
+npm run db:push
+npm run db:seed
+
+# 4. Start both servers in separate terminals
+cd backend  && npm run dev    # → http://localhost:4000
+cd frontend && npm run dev    # → http://localhost:5173
 ```
 
 Open **http://localhost:5173** in your browser.  
-Studio console is at **http://localhost:5173/studio**.
+Studio console: **http://localhost:5173/studio**  
+Demo QR serial: `FL-DEMO-0001`
+
+---
+
+## Deploy to production (Render + Vercel)
+
+Follow these steps **in order**:
+
+### 1. Create a Render Postgres database
+
+In the Render dashboard, create a new **PostgreSQL** instance. Copy the **Internal Database URL** — you'll need it next.
+
+### 2. Deploy the backend on Render
+
+1. Create a new **Web Service**, connect your repo, set root directory to `backend/`.
+2. **Build command:** `npm ci && npm run build:prod`
+3. **Start command:** `npm run start:prod`
+4. **Health check path:** `/api/health`
+5. Set these environment variables in the Render dashboard:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Postgres internal URL from step 1 |
+| `DB_PROVIDER` | `postgresql` |
+| `SERVER_SECRET` | `openssl rand -hex 32` |
+| `STUDIO_API_KEY` | `openssl rand -hex 24` |
+| `CORS_ORIGIN` | Your Vercel URL (fill in after step 3) |
+| `LLM_API_KEY` | Optional — leave blank for template briefs |
+| `FAN_RATE_MAX` | `300` |
+
+6. Deploy. Copy the service URL (e.g. `https://fandomloop-india-api.onrender.com`).
+
+> `render.yaml` in the backend directory pre-configures the service. You can also use "Deploy from YAML" in Render.
+
+### 3. Deploy the frontend on Vercel
+
+1. Import the repo on Vercel, set **Root Directory** to `frontend/`.
+2. Framework preset: **Vite**. Build command: `npm run build`. Output: `dist`.
+3. Add environment variable:
+
+| Variable | Value |
+|---|---|
+| `VITE_API_URL` | Your Render backend URL from step 2 |
+
+4. Deploy. Copy the Vercel URL (e.g. `https://fandomloop.vercel.app`).
+
+### 4. Update CORS_ORIGIN on Render
+
+Go back to the Render dashboard and set `CORS_ORIGIN` to your Vercel URL from step 3, then trigger a redeploy.
+
+### 5. Seed once
+
+```bash
+# In the Render shell (Dashboard → Shell), or locally with prod credentials:
+DATABASE_URL="<postgres-url>" DB_PROVIDER=postgresql npm run seed:prod
+```
+
+Or from the Render web service shell tab.
+
+### 6. Verify with smoke test
+
+```bash
+bash backend/scripts/smoke.sh https://fandomloop-india-api.onrender.com
+```
 
 ---
 
@@ -54,24 +120,25 @@ Studio console is at **http://localhost:5173/studio**.
 
 ### Backend (`backend/.env`)
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | yes | `file:./prisma/dev.db` for SQLite; Postgres connection string for production |
-| `SERVER_SECRET` | yes | HMAC key for pseudonymous ID generation — change before production |
-| `PORT` | no | HTTP port, defaults to 4000 |
-| `CORS_ORIGIN` | no | Comma-separated allowed frontend origins. Defaults to `localhost:3000,5173` |
-| `STUDIO_API_KEY` | no | Protects `POST /api/campaigns` and `POST /api/campaigns/:slug/settle`. Leave empty in dev to bypass. |
-| `LLM_API_KEY` | no | OpenAI-compatible API key. Leave empty to use the template brief fallback. |
-| `LLM_BASE_URL` | no | LLM API base URL. Default: `https://api.openai.com/v1` |
-| `LLM_MODEL` | no | Model name. Default: `gpt-4o-mini` |
-
-Copy `backend/.env.example` to `backend/.env` and fill in the values.
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | yes | `file:./prisma/dev.db` | SQLite path (dev) or Postgres URL (prod) |
+| `DB_PROVIDER` | no | `sqlite` | `sqlite` or `postgresql` — patches `schema.prisma` |
+| `SERVER_SECRET` | yes | — | HMAC key for pseudonymous IDs. **Never use fallback in production.** |
+| `PORT` | no | `4000` | HTTP port |
+| `CORS_ORIGIN` | no | `localhost:3000,5173` | Comma-separated allowed origins |
+| `STUDIO_API_KEY` | no | *(empty)* | Protects studio endpoints. Leave empty in dev. |
+| `LLM_API_KEY` | no | *(empty)* | OpenAI-compatible key. Empty = template brief. |
+| `LLM_BASE_URL` | no | `https://api.openai.com/v1` | LLM endpoint |
+| `LLM_MODEL` | no | `gpt-4o-mini` | Model name |
+| `FAN_RATE_MAX` | no | `300` | Fan route requests per 15 min per IP |
+| `TEST_FEE_INR` | no | `10000` | Platform test fee shown in Console |
 
 ### Frontend (`frontend/.env`)
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_API_URL` | *(empty)* | Backend origin. Leave empty in dev — Vite proxy handles `/api/*`. Set to deployed backend URL in production. |
+| `VITE_API_URL` | *(empty)* | Backend origin. Empty = Vite proxy (`/api/*` → `localhost:4000`) |
 
 ---
 
@@ -79,64 +146,39 @@ Copy `backend/.env.example` to `backend/.env` and fill in the values.
 
 ### Backend
 
-| Command | What it does |
+| Command | Description |
 |---|---|
-| `npm run dev` | Start with hot reload (tsx watch) |
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Run compiled output (production) |
-| `npm test` | Run all Vitest tests |
-| `npm run db:push` | Sync Prisma schema to the database |
-| `npm run db:seed` | Wipe and re-seed demo data |
-| `npm run demo:reset` | Force-reset database + re-seed in one command |
+| `npm run dev` | Start with hot reload |
+| `npm run build` | Compile TypeScript (dev) |
+| `npm run build:prod` | Patch provider + prisma generate + tsc |
+| `npm start` | Run compiled output |
+| `npm run start:prod` | `prisma db push` then run compiled output |
+| `npm test` | Run all Vitest tests (117 tests) |
+| `npm run db:push` | Sync Prisma schema |
+| `npm run db:seed` / `npm run seed:prod` | Wipe and re-seed demo data |
+| `npm run demo:reset` | Force-reset DB + re-seed |
 
 ### Frontend
 
-| Command | What it does |
+| Command | Description |
 |---|---|
-| `npm run dev` | Start Vite dev server on port 5173 |
+| `npm run dev` | Vite dev server on port 5173 |
 | `npm run build` | Production build to `dist/` |
-| `npm run preview` | Serve the production build locally |
+| `npm run preview` | Serve production build locally |
 
 ---
 
-## Deploying to production
+## Smoke test
 
-### Switch Prisma to Postgres
+```bash
+# Against local dev servers (both must be running):
+bash backend/scripts/smoke.sh http://localhost:4000
 
-1. In `backend/prisma/schema.prisma` change `provider = "sqlite"` to `provider = "postgresql"`.
-2. Set `DATABASE_URL` to your Postgres connection string (Render, Supabase, Railway, Neon, etc.).
-3. Run `npm run db:push` (or `prisma migrate deploy` if using migrations).
+# Against production:
+STUDIO_API_KEY=your-key bash backend/scripts/smoke.sh https://your-api.onrender.com
+```
 
-The schema is already Postgres-compatible — column values for all String enums are identical.
-
----
-
-### Deploy backend on Render
-
-1. Create a new **Web Service** → connect your repo → select the `backend/` directory.
-2. **Build command:** `npm install && npm run build && npx prisma generate && npx prisma db push`
-3. **Start command:** `npm start`
-4. Add environment variables in the Render dashboard:
-   ```
-   DATABASE_URL=postgresql://...
-   SERVER_SECRET=<long random string>
-   STUDIO_API_KEY=<long random string>
-   CORS_ORIGIN=https://your-frontend.vercel.app
-   LLM_API_KEY=<optional>
-   ```
-5. Copy the service URL (e.g. `https://fandomloop.onrender.com`).
-
----
-
-### Deploy frontend on Vercel
-
-1. Import the repo → set **Root Directory** to `frontend`.
-2. Framework preset: **Vite**. Build command: `npm run build`. Output: `dist`.
-3. Add environment variable:
-   ```
-   VITE_API_URL=https://fandomloop.onrender.com
-   ```
-4. Deploy. `vercel.json` already handles SPA routing so `/verify/FL-2026-XXXX` works when scanned from a QR code on any device.
+Checks: health, ≥3 campaigns, evaluate-gate GO/ADAPT/STOP, FL-DEMO-0001 verified, FAKE-0000 not verified, POST /api/orders → 404, settle without key → 401.
 
 ---
 
@@ -145,31 +187,35 @@ The schema is already Postgres-compatible — column values for all String enums
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/health` | — | Health check |
-| `GET` | `/api/campaigns` | — | List campaigns with live stats |
+| `GET` | `/api/campaigns` | — | List campaigns with live stats + ourRevenue |
 | `GET` | `/api/campaigns/:slug` | — | Single campaign |
 | `POST` | `/api/campaigns` | Studio key | Create campaign |
-| `POST` | `/api/campaigns/evaluate-gate` | — | Stateless margin gate evaluation |
-| `POST` | `/api/campaigns/:slug/settle` | Studio key | Capture or release pledges |
+| `POST` | `/api/campaigns/evaluate-gate` | — | Stateless margin gate |
+| `POST` | `/api/campaigns/:slug/settle` | Studio key | Capture or release pledges, issue serials |
 | `GET` | `/api/campaigns/:slug/segments` | — | Demand segments |
-| `POST` | `/api/campaigns/:slug/insights` | — | Fan comment clusters (keyword heuristic) |
-| `POST` | `/api/campaigns/:slug/brief` | — | AI launch brief (LLM or template) |
+| `GET` | `/api/campaigns/:slug/sources` | Studio key | Opt-ins grouped by acquisition source |
+| `GET` | `/api/campaigns/:slug/scans` | Studio key | Scan analytics + counterfeit list |
+| `GET` | `/api/campaigns/:slug/prior` | — | Demand prior (AniList + Trends + dub) |
+| `POST` | `/api/campaigns/:slug/insights` | — | Fan comment clusters |
+| `POST` | `/api/campaigns/:slug/brief` | — | AI launch brief |
 | `POST` | `/api/consent` | Rate limited | Record consent, get pseudonymousId |
-| `POST` | `/api/pledges` | Rate limited | Create pledge (one per pseudonymousId per campaign) |
+| `POST` | `/api/consent/withdraw` | Rate limited | Withdraw data (DPDPA) |
+| `POST` | `/api/pledges` | Rate limited | Create pledge |
 | `POST` | `/api/pledges/:id/preauthorize` | — | Mock UPI mandate |
-| `POST` | `/api/orders` | — | Register an order, get FL-YYYY-XXXX serial |
-| `GET` | `/api/verify/:serial` | — | Check if a serial is registered (used by QR scan) |
+| `GET` | `/api/pledges/:id/order` | — | Order status (requires pseudonymousId) |
+| `GET` | `/api/verify/:serial` | — | Check serial (used by QR scan) |
 
-Studio key is sent as `X-Studio-Key: <value>` header. Omit in dev when `STUDIO_API_KEY` is empty.
+Studio key: `X-Studio-Key: <value>` header. Omit in dev when `STUDIO_API_KEY` is empty.
 
 ---
 
 ## Security notes
 
-- **Pseudonymous IDs:** Raw phone numbers or device IDs are never stored. `HMAC-SHA256(identifier, SERVER_SECRET)` truncated to 24 hex chars is stored instead.
-- **Rate limiting:** `POST /api/consent` and `POST /api/pledges` are limited to 30 requests per IP per 15 minutes.
-- **Duplicate pledges:** One pledge per `pseudonymousId` per campaign is enforced at the database query level.
-- **Age verification:** The fan vote form collects `ageConfirmed` (18+) or `guardianConsent` (under 18) before submitting to `POST /api/consent`. The backend rejects consent records that have neither.
-- **CORS:** Only origins listed in `CORS_ORIGIN` are allowed. Set this to your production frontend URL.
+- **Pseudonymous IDs:** Raw phone/device IDs never stored. `HMAC-SHA256(identifier, SERVER_SECRET)` truncated to 24 hex chars.
+- **Production guard:** The server refuses to start if `SERVER_SECRET` is missing or shorter than 16 chars when `NODE_ENV=production`.
+- **Rate limiting:** Fan write routes limited to 300 req/15 min/IP (configurable via `FAN_RATE_MAX`).
+- **SPA routing:** `frontend/vercel.json` rewrites all paths to `index.html` so `/verify/:serial` and `/studio` work on direct access and QR scan.
+- **CORS:** Only origins in `CORS_ORIGIN` are allowed. Always set this to your exact Vercel URL in production.
 
 ---
 
@@ -179,8 +225,9 @@ Studio key is sent as `X-Studio-Key: <value>` header. Omit in dev when `STUDIO_A
 |---|---|
 | `Cannot GET /` in browser | You opened port 4000 (the API). Open **http://localhost:5173** instead |
 | Prisma engine platform error | Run `npx prisma generate` in `backend/` |
-| `permission denied` on npm scripts | Run `find node_modules/.bin -type f \| xargs chmod +x` in the affected folder |
-| Port already in use | `lsof -ti:4000 \| xargs kill` or `lsof -ti:5173 \| xargs kill` |
-| `skyblade-chronicles` campaign not found | Run `npm run db:seed` in `backend/` |
+| Port already in use | Kill the process using the port |
+| Console shows 401 | Enter your `STUDIO_API_KEY` value in the Studio key field and click Save |
+| Settle returns 401 | Same as above — the key in the Console field must match `STUDIO_API_KEY` |
 | Brief shows "template" | Set `LLM_API_KEY` in `backend/.env` |
-| Studio operations return 401 | Add your `STUDIO_API_KEY` value in the Studio key field in `/studio` |
+| QR not working after deploy | Check `VITE_API_URL` is set on Vercel and the Vercel URL is in `CORS_ORIGIN` on Render |
+| Server won't start in production | `SERVER_SECRET` is missing or too short — set it in Render env vars |

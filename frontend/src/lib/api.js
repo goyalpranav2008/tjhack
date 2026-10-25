@@ -45,7 +45,7 @@ async function request(method, path, body, extraHeaders = {}) {
 
 // ── Campaigns ─────────────────────────────────────────────────────────────
 
-/** GET /api/campaigns — returns campaigns enriched with pledgeCount + gateVerdict */
+/** GET /api/campaigns — returns campaigns enriched with committedCount, gateVerdict, ourRevenue */
 export const getCampaigns = () => request("GET", "/api/campaigns")
 
 /** GET /api/campaigns/:slug */
@@ -62,65 +62,89 @@ export const evaluateGate = (body) =>
 export const getCampaignSegments = (slug) =>
   request("GET", `/api/campaigns/${slug}/segments`)
 
+/** GET /api/campaigns/:slug/sources */
+export const getCampaignSources = (slug) =>
+  request("GET", `/api/campaigns/${slug}/sources`)
+
+/** GET /api/campaigns/:slug/scans */
+export const getCampaignScans = (slug) =>
+  request("GET", `/api/campaigns/${slug}/scans`)
+
 /** POST /api/campaigns/:slug/settle */
 export const settleCampaign = (slug) =>
   request("POST", `/api/campaigns/${slug}/settle`)
 
-// ── Orders ────────────────────────────────────────────────────────────────
-
-/**
- * POST /api/orders
- * Returns { serial, itemName, batch, seller, authorized, registeredAt }
- */
-export const createOrder = (body) => request("POST", "/api/orders", body)
+// ── Verify ────────────────────────────────────────────────────────────────
 
 /**
  * GET /api/verify/:serial
- * Returns { verified: true, serial, item, batch, seller, authorized, campaign, registeredAt }
- *      or { verified: false }
+ * Returns { verified, serial, item, batch, seller, authorized, campaign,
+ *           registeredAt, scanCount, suspicious }
+ *      or { verified: false, serial }
  */
 export const verifySerial = (serial) =>
   request("GET", `/api/verify/${encodeURIComponent(serial.trim().toUpperCase())}`)
 
 // ── AI ────────────────────────────────────────────────────────────────────
 
-/**
- * POST /api/campaigns/:slug/insights
- * Returns { totalComments, method, clusters }
- */
+/** POST /api/campaigns/:slug/insights — { totalComments, method, clusters } */
 export const getCampaignInsights = (slug) =>
   request("POST", `/api/campaigns/${slug}/insights`)
 
-/**
- * POST /api/campaigns/:slug/brief
- * Returns { generatedBy, verdict, sections }
- */
+/** POST /api/campaigns/:slug/brief — { generatedBy, verdict, sections } */
 export const getCampaignBrief = (slug) =>
   request("POST", `/api/campaigns/${slug}/brief`)
 
 // ── Consent ───────────────────────────────────────────────────────────────
 
-/**
- * POST /api/consent
- * Returns { pseudonymousId, consentId }
- */
+/** POST /api/consent — { pseudonymousId, consentId } */
 export const recordConsent = (body) => request("POST", "/api/consent", body)
+
+/** POST /api/consent/withdraw — { withdrawn, released, campaignsAffected } */
+export const withdrawConsent = (pseudonymousId) =>
+  request("POST", "/api/consent/withdraw", { pseudonymousId })
 
 // ── Pledges ───────────────────────────────────────────────────────────────
 
-/**
- * POST /api/pledges
- * Returns { pledge, progressPct }
- */
+/** POST /api/pledges — { pledge, progressPct } */
 export const createPledge = (body) => request("POST", "/api/pledges", body)
 
-/**
- * POST /api/pledges/:id/preauthorize
- * Returns { mock, pledge, mandateRef, note }
- */
+/** POST /api/pledges/:id/preauthorize — { mock, pledge, mandateRef, progressPct } */
 export const preauthorizePledge = (id) =>
   request("POST", `/api/pledges/${id}/preauthorize`)
+
+/** GET /api/pledges/:id/order?pseudonymousId=... — { status, order? } */
+export const getPledgeOrder = (id, pseudonymousId) =>
+  request("GET", `/api/pledges/${id}/order?pseudonymousId=${encodeURIComponent(pseudonymousId)}`)
 
 // ── Health ────────────────────────────────────────────────────────────────
 
 export const healthCheck = () => request("GET", "/api/health")
+
+// ── Signals / prior ───────────────────────────────────────────────────────
+
+/**
+ * GET /api/campaigns/:slug/prior
+ * Returns { asOf, signalsUsed, perCity, trend, sources, _meta }
+ */
+export const getCampaignPrior = (slug) =>
+  request("GET", `/api/campaigns/${slug}/prior`)
+
+// ── Analysis / evaluation ─────────────────────────────────────────────────
+
+/** GET /api/analysis/report — { dataSources, dataQuality, nlp, demand, gate, limitations } */
+export const getAnalysisReport = () => request("GET", "/api/analysis/report")
+
+/** POST /api/analysis/run — re-runs evaluation and returns fresh report */
+export const runAnalysis = () => request("POST", "/api/analysis/run")
+
+// ── Demo reset ────────────────────────────────────────────────────────────
+
+/** POST /api/demo/reset — { reset: true, campaigns } */
+export const demoReset = () => request("POST", "/api/demo/reset")
+
+// ── Campaign reopen ───────────────────────────────────────────────────────
+
+/** POST /api/campaigns/:slug/reopen — { campaign } */
+export const reopenCampaign = (slug) =>
+  request("POST", `/api/campaigns/${slug}/reopen`)

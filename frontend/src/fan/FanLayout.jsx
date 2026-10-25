@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom"
 import { useEffect } from "react"
 import { BadgeCheck, Home, ShoppingBag, ThumbsUp } from "lucide-react"
+import { SOURCE_RE } from "../lib/formats"
 
 const tabs = [
   { to: "/", label: "Home", Icon: Home, end: true },
@@ -21,7 +22,17 @@ function Logo() {
 }
 
 export default function FanLayout() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
+
+  // Capture ?ref= once per session and store in sessionStorage
+  useEffect(() => {
+    const params = new URLSearchParams(search)
+    const ref = params.get("ref")
+    if (ref && SOURCE_RE.test(ref)) {
+      sessionStorage.setItem("fandomloop_ref", ref)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps — only on mount
+
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
 
   return (
@@ -49,10 +60,15 @@ export default function FanLayout() {
       </main>
 
       <footer className="mx-auto max-w-2xl px-5 pb-28 text-sm text-ink/70 md:pb-10">
-        <p>Sample title and sample data. Payments are simulated and no money moves.</p>
-        <NavLink to="/studio" className="mt-2 inline-block font-bold underline underline-offset-4">
-          Studio? Open the console
-        </NavLink>
+        <p>Monsoon Samurai. Payments are simulated and no money moves.</p>
+        <div className="mt-2 flex gap-4">
+          <NavLink to="/studio" className="font-bold underline underline-offset-4">
+            Studio? Open the console
+          </NavLink>
+          <NavLink to="/privacy" className="font-bold underline underline-offset-4">
+            Privacy & withdraw
+          </NavLink>
+        </div>
       </footer>
 
       <nav

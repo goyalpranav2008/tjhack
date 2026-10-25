@@ -1,0 +1,15 @@
+{
+  "_comment": "Fallback sample when AniList is unreachable. isSample:true is always set when this file is used.",
+  "anilist": {
+    "id": 0,
+    "title": "Sample Title",
+    "popularity": 150000,
+    "trending": 40,
+    "averageScore": 82,
+    "genres": ["Action", "Fantasy"],
+    "status": "RELEASING",
+    "nextAiringEpisode": null,
+    "fetchedAt": "2026-01-01T00:00:00.000Z",
+    "isSample": true
+  }
+}

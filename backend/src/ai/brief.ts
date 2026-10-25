@@ -6,7 +6,7 @@
  * labelled template brief so the demo never breaks without a key.
  *
  * CACHING:
- *   Results are cached in memory keyed by `${campaignId}:${verdictStatus}`.
+ *   Results are cached in memory keyed by `${campaignId}:${verdictStatus}:${committedCount}`.
  *   The cache is in-process and survives hot-reloads but is cleared on restart.
  *   For production, swap the Map for Redis or a DB column.
  */
@@ -30,8 +30,8 @@ const cache = new Map<string, LaunchBrief>();
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function cacheKey(campaignId: number, verdict: string, pledgeCount: number) {
-  return `${campaignId}:${verdict}:${pledgeCount}`;
+function cacheKey(campaignId: number, verdict: string, committedCount: number): string {
+  return `${campaignId}:${verdict}:${committedCount}`;
 }
 
 function formatClusters(clusters: ClusterResult[]): string {
@@ -157,11 +157,12 @@ Write the launch brief.`;
 export async function generateBrief(
   campaignId:    number,
   campaignTitle: string,
-  gate:     GateResult,
-  topSeg:   { city: string; language: string; count: number } | null,
-  clusters: ClusterResult[]
+  gate:          GateResult,
+  committedCount: number,
+  topSeg:        { city: string; language: string; count: number } | null,
+  clusters:      ClusterResult[]
 ): Promise<LaunchBrief> {
-  const key = cacheKey(campaignId, gate.status);
+  const key = cacheKey(campaignId, gate.status, committedCount);
   if (cache.has(key)) return cache.get(key)!;
 
   let brief: LaunchBrief;

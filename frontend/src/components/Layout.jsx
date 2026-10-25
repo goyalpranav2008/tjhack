@@ -1,6 +1,9 @@
 import { NavLink, Outlet } from "react-router-dom"
 
-const links = [{ to: "/studio", label: "Studio console", end: true }]
+const links = [
+  { to: "/studio", label: "Studio console", end: true },
+  { to: "/studio/analysis", label: "Data analysis" },
+]
 
 export default function Layout() {
   return (

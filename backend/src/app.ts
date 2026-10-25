@@ -6,11 +6,17 @@ import campaignRoutes from "./routes/campaigns";
 import consentRoutes  from "./routes/consent";
 import pledgeRoutes   from "./routes/pledges";
 import aiRoutes       from "./ai/routes";
-import { ordersRouter, verifyRouter } from "./routes/orders";
-import { requireStudioKey } from "./middleware/auth";
-import { fanWriteLimit }    from "./middleware/rateLimit";
+import { ordersRouter, verifyRouter, pledgeOrderRouter } from "./routes/orders";
+import { fanWriteLimit } from "./middleware/rateLimit";
+import signalRoutes from "./signals/routes";
+import analysisRoutes from "./eval/routes";
+import demoRoutes from "./routes/demo";
 
 const app = express();
+
+// Trust the first proxy hop so rate limiting uses the real client IP
+// (required when deployed behind a load balancer / Vercel / Render / etc.)
+app.set("trust proxy", 1);
 
 const ALLOWED_ORIGINS = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
@@ -28,24 +34,27 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/consent", fanWriteLimit, consentRoutes);
 app.use("/api/pledges", fanWriteLimit, pledgeRoutes);
 
-// ── Campaign routes — POST and settle require studio key ──────────────────
-// GET routes on /api/campaigns are public (read-only).
-// POST /api/campaigns (create) and POST /api/campaigns/:slug/settle need auth.
-// We apply the middleware at the router level inside campaigns.ts by
-// exporting two sub-routers; here we apply it per-method instead to keep
-// campaigns.ts clean.
+// ── Campaign routes ───────────────────────────────────────────────────────
 app.use("/api/campaigns", campaignRoutes);
-
-// Studio-key guard is injected on the individual sensitive endpoints below.
-// campaignRoutes itself calls requireStudioKey via the campaigns router
-// (see campaigns.ts — we set it up there for the two protected routes).
 
 // ── Orders and verification ───────────────────────────────────────────────
 app.use("/api/orders", ordersRouter);
 app.use("/api/verify", verifyRouter);
 
+// ── Pledge order lookup ───────────────────────────────────────────────────
+app.use("/api/pledges", pledgeOrderRouter);
+
 // ── AI endpoints ──────────────────────────────────────────────────────────
 app.use("/api/campaigns", aiRoutes);   // mounts /:slug/insights, /:slug/brief
+
+// ── Signal / prior endpoints ──────────────────────────────────────────────
+app.use("/api/campaigns", signalRoutes);  // mounts /:slug/prior
+
+// ── Analysis / evaluation endpoints ──────────────────────────────────────
+app.use("/api/analysis", analysisRoutes);  // mounts /report and /run
+
+// ── Demo reset (DEMO_MODE=true only) ─────────────────────────────────────
+app.use("/api/demo", demoRoutes);  // mounts /reset
 
 // ── Global error handler ──────────────────────────────────────────────────
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
